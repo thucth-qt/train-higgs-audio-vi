@@ -292,7 +292,7 @@ def main():
         "--jsonl_files", 
         nargs="+",
         default=[
-            "/root/code/new_work_code/HI-TransPA/swfit_workdir/fresh-little-lemon-workspace/data/swift_format/tun_audio.jsonl",
+            # "/root/code/new_work_code/HI-TransPA/swfit_workdir/fresh-little-lemon-workspace/data/swift_format/tun_audio.jsonl",
             "/root/code/new_work_code/HI-TransPA/swfit_workdir/fresh-little-lemon-workspace/data/swift_format/huo_audio.jsonl"
         ],
         help="Path to JSONL files"
@@ -300,7 +300,7 @@ def main():
     
     parser.add_argument(
         "--output_dir",
-        default="/root/code/higgs-audio-main/higgs_training_data",
+        default="/root/code/higgs-audio-main/higgs_training_data_huo",
         help="Output directory for the dataset"
     )
     

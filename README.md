@@ -7,6 +7,77 @@
   <a href="https://huggingface.co/bosonai/higgs-audio-v2-generation-3B-base"><img src="https://img.shields.io/badge/🤗-Checkpoints (3.6B LLM + 2.2B audio adapter)-ED5A22.svg" style="margin-right: 5px;"></a>
 </div>
 
+# Training repo for Higgs Audio v2  Higgs Audio v2 训练仓库
+
+# Data Processing and Training Guide  数据处理与训练指南
+
+## Data Processing  数据处理
+
+First, prepare your audio and text data in the required format.  
+首先，请按照要求准备好音频和文本数据。
+
+### Data Format  数据格式
+
+ms-swift data format:  
+ms-swift 数据格式:
+```jsonl
+{"messages": [{"role": "assistant", "content": "<think>描述了今天天气真不错"}], "audios": ["/xxx/x.wav"]}
+```
+
+Run the script  
+运行脚本
+
+```shell
+python convert_jsonl_to_higgs.py \
+  --jsonl_files /path/to/audio.jsonl \
+  --output_dir ./higgs_training_data \
+  --copy_audio True
+```
+
+Obtain data in the following format  
+得到以下格式的数据
+
+```shell
+higgs_training_data/
+├── metadata.json                  # 数据集元数据总文件
+├── tun_speaker_000001.wav         # 说话人tun的音频文件1
+├── tun_speaker_000001.txt         # 对应音频的文本转录
+├── tun_speaker_000002.wav         # 说话人tun的音频文件2
+├── tun_speaker_000002.txt         # 对应音频的文本转录
+├── ...                            # 更多tun_speaker的音频/文本文件
+├── huo_speaker_000051.wav         # 说话人huo的音频文件1
+├── huo_speaker_000051.txt         # 对应音频的文本转录
+├── huo_speaker_000052.wav         # 说话人huo的音频文件2
+├── huo_speaker_000052.txt         # 对应音频的文本转录
+└── ...                            # 更多huo_speaker的音频/文本文件
+```
+
+## Training  训练
+
+Please make sure to modify all parameters before training, including data path, model path, number of training epochs, etc.  
+请务必在训练前修改各个参数，包括数据路径、模型路径、训练轮数等。
+
+```shell
+python trainer/trainer.py
+```
+
+## generate  生成
+
+```shell
+bash generate.sh
+```
+
+## Experiment Comparison: Text and Audio Effect Comparison  实验对比：文本与音频效果对照
+
+To intuitively show the difference between generated sounds and real sounds, the following table contains directly playable audio files:  
+为直观展示生成声音与真实声音的差异，以下表格包含可直接播放的音频文件：
+
+| 文本内容 | 真实声音（用户后录） | 生成声音（脚本输出） |
+|----------|----------------------|----------------------|
+| 大家好，我是火君，我居住在上海 | <audio controls><source src="test_demo/huojun.MP3" type="audio/mpeg"> | <audio controls><source src="test_demo/huojun_gen.wav" type="audio/wav"> |
+| 我爱机智流，机智流是最好的开源社区 | <audio controls><source src="test_demo/smartflowai.MP3" type="audio/mpeg"> | <audio controls><source src="test_demo/smartflowai_gen.wav" type="audio/wav"> |
+
+
 
 We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-tuning, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
 
