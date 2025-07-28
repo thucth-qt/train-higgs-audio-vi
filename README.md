@@ -72,10 +72,15 @@ bash generate.sh
 To intuitively show the difference between generated sounds and real sounds, the following table contains directly playable audio files:  
 为直观展示生成声音与真实声音的差异，以下表格包含可直接播放的音频文件：
 
+Since the data I have is the speech of hearing-impaired individuals, for the purpose of comparison, I selected a speech sample from a hearing-impaired person as the real voice, and a generated version of the same speech as the generated voice.
+因为我手上的数据是听障人士的语音，因此在对比时，我选择了一个听障人士的语音作为真实声音，另一个相同语音的生成版本作为生成声音。
+
+
+
 | 文本内容 | 真实声音（用户后录） | 生成声音（脚本输出） |
 |----------|----------------------|----------------------|
-| 大家好，我是火君，我居住在上海 | <audio controls><source src="test_demo/huojun.MP3" type="audio/mpeg"> | <audio controls><source src="test_demo/huojun_gen.wav" type="audio/wav"> |
-| 我爱机智流，机智流是最好的开源社区 | <audio controls><source src="test_demo/smartflowai.MP3" type="audio/mpeg"> | <audio controls><source src="test_demo/smartflowai_gen.wav" type="audio/wav"> |
+| 大家好，我是火君，我居住在上海 | <audio controls><source src="test_demo/huojun.MP3" type="audio/mpeg">您的浏览器不支持音频播放，请点击下载：[MP3文件](test_demo/huojun.MP3)</audio> | <audio controls><source src="test_demo/huojun_gen.wav" type="audio/wav">您的浏览器不支持音频播放，请点击下载：[WAV文件](test_demo/huojun_gen.wav)</audio> |
+| 我爱机智流，机智流是最好的开源社区 | <audio controls><source src="test_demo/smartflowai.MP3" type="audio/mpeg">您的浏览器不支持音频播放，请点击下载：[MP3文件](test_demo/smartflowai.MP3)</audio> | <audio controls><source src="test_demo/smartflowai_gen.wav" type="audio/wav">您的浏览器不支持音频播放，请点击下载：[WAV文件](test_demo/smartflowai_gen.wav)</audio> |
 
 
 
