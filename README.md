@@ -7,7 +7,7 @@
   <a href="https://huggingface.co/bosonai/higgs-audio-v2-generation-3B-base"><img src="https://img.shields.io/badge/🤗-Checkpoints (3.6B LLM + 2.2B audio adapter)-ED5A22.svg" style="margin-right: 5px;"></a>
 </div>
 
-# Training repo for Higgs Audio v2  Higgs Audio v2 训练仓库
+# Training repo for Higgs Audio v2  
 
 # Data Processing and Training Guide  数据处理与训练指南
 
@@ -40,11 +40,11 @@ Obtain data in the following format
 ```shell
 higgs_training_data/
 ├── metadata.json                  # 数据集元数据总文件
-├── tun_speaker_000001.wav         # 说话人tun的音频文件1
-├── tun_speaker_000001.txt         # 对应音频的文本转录
-├── tun_speaker_000002.wav         # 说话人tun的音频文件2
-├── tun_speaker_000002.txt         # 对应音频的文本转录
-├── ...                            # 更多tun_speaker的音频/文本文件
+├── huo_speaker_000001.wav         # 说话人huo的音频文件1
+├── huo_speaker_000001.txt         # 对应音频的文本转录
+├── huo_speaker_000002.wav         # 说话人huo的音频文件2
+├── huo_speaker_000002.txt         # 对应音频的文本转录
+├── ...                            # 更多huo_speaker的音频/文本文件
 ├── huo_speaker_000051.wav         # 说话人huo的音频文件1
 ├── huo_speaker_000051.txt         # 对应音频的文本转录
 ├── huo_speaker_000052.wav         # 说话人huo的音频文件2
@@ -79,12 +79,10 @@ Since the data I have is the speech of hearing-impaired individuals, for the pur
 
 | 文本内容 | 真实声音（用户后录） | 生成声音（脚本输出） |
 |----------|----------------------|----------------------|
-| 大家好，我是火君，我居住在上海 | <audio controls><source src="test_demo/huojun.MP3" type="audio/mpeg">您的浏览器不支持音频播放，请点击下载：[MP3文件](test_demo/huojun.MP3)</audio> | <audio controls><source src="test_demo/huojun_gen.wav" type="audio/wav">您的浏览器不支持音频播放，请点击下载：[WAV文件](test_demo/huojun_gen.wav)</audio> |
-| 我爱机智流，机智流是最好的开源社区 | <audio controls><source src="test_demo/smartflowai.MP3" type="audio/mpeg">您的浏览器不支持音频播放，请点击下载：[MP3文件](test_demo/smartflowai.MP3)</audio> | <audio controls><source src="test_demo/smartflowai_gen.wav" type="audio/wav">您的浏览器不支持音频播放，请点击下载：[WAV文件](test_demo/smartflowai_gen.wav)</audio> |
+| 大家好，我是火君，我居住在上海 | [点击播放/下载 (huojun.MP3)](test_demo/huojun.MP3) | [点击播放/下载 (huojun_gen.wav)](test_demo/huojun_gen.wav) |
+| 我爱机智流，机智流是最好的开源社区 | [点击播放/下载 (smartflowai.MP3)](test_demo/smartflowai.MP3) | [点击播放/下载 (smartflowai_gen.wav)](test_demo/smartflowai_gen.wav) |
 
-
-
-We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-tuning, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
+We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-huoing, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
 
 On [EmergentTTS-Eval](https://github.com/boson-ai/emergenttts-eval-public), it achieves win rates of **75.7%** and **55.7%** over "gpt-4o-mini-tts" on the "Emotions" and "Questions" categories, respectively. It also obtains state-of-the-art performance on traditional TTS benchmarks like Seed-TTS Eval and Emotional Speech Dataset (ESD). Moreover, the model demonstrates capabilities rarely seen in previous systems, including generating natural multi-speaker dialogues in multiple languages, automatic prosody adaptation during narration, melodic humming with the cloned voice, and simultaneous generation of speech and background music.
 
@@ -291,7 +289,7 @@ python3 examples/generation.py \
 
 
 Higgs Audio v2 adopts the "generation variant" depicted in the architecture figure above. Its strong performance is driven by three key technical innovations:
-- We developed an automated annotation pipeline that leverages multiple ASR models, sound event classification models, and our in-house audio understanding model. Using this pipeline, we cleaned and annotated 10 million hours audio data, which we refer to as **AudioVerse**. The in-house understanding model is finetuned on top of [Higgs Audio v1 Understanding](https://www.boson.ai/blog/higgs-audio), which adopts the "understanding variant" shown in the architecture figure.
+- We developed an automated annotation pipeline that leverages multiple ASR models, sound event classification models, and our in-house audio understanding model. Using this pipeline, we cleaned and annotated 10 million hours audio data, which we refer to as **AudioVerse**. The in-house understanding model is finehuoed on top of [Higgs Audio v1 Understanding](https://www.boson.ai/blog/higgs-audio), which adopts the "understanding variant" shown in the architecture figure.
 - We trained a unified audio tokenizer from scratch that captures both semantic and acoustic features. Learn more in the [tokenizer blog](./tech_blogs/TOKENIZER_BLOG.md).
 - We proposed the DualFFN architecture, which enhances the LLM’s ability to model acoustics tokens with minimal computational overhead. See the [architecture blog](./tech_blogs/ARCHITECTURE_BLOG.md).
 
