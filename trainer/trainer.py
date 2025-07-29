@@ -555,13 +555,12 @@ class HiggsAudioModelWrapper(nn.Module):
         
         if args:
             if args.freeze_audio_tower:
-                self.model.freeze_audio_tower = args.freeze_audio_tower
+                self.model.freeze_audio_tower()
             if args.freeze_audio_encoder_proj:
-                self.model.freeze_audio_encoder_proj = args.freeze_audio_encoder_proj
+                self.model.freeze_audio_encoder_proj()
             if args.freeze_llm:
-                self.model.freeze_llm = args.freeze_llm
-            if args.freeze_text_head:
-                self.model.freeze_text_head = args.freeze_text_head
+                self.model.freeze_llm()
+
 
     @property
     def device(self):
@@ -684,8 +683,8 @@ def main():
                        help="Whether to include reference audio in system message")
     
     # Training arguments
-    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train-v1")
-    parser.add_argument("--num_train_epochs", type=int, default=3)
+    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train-v2")
+    parser.add_argument("--num_train_epochs", type=int, default=2)
     parser.add_argument("--per_device_train_batch_size", type=int, default=4)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=1e-5)
@@ -704,15 +703,15 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--wandb_project", default=None)
-    parser.add_argument("--logging_dir", type=str, default="./logs/huo-v1")
+    parser.add_argument("--logging_dir", type=str, default="./logs/huo-v2")
     parser.add_argument("--report_to", type=str, default="tensorboard", 
                        choices=["tensorboard", "wandb", "none"])
     
     # Freeze model components
     parser.add_argument("--freeze_audio_tower", action="store_true", default=False)
     parser.add_argument("--freeze_audio_encoder_proj", action="store_true", default=False)
-    parser.add_argument("--freeze_llm", action="store_true", default=False)
-    parser.add_argument("--freeze_text_head", action="store_true", default=False)
+    parser.add_argument("--freeze_llm", action="store_true", default=True)
+
 
     args = parser.parse_args()
     
