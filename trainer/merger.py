@@ -9,10 +9,11 @@ import torch
 import argparse
 import logging
 from pathlib import Path
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, GenerationConfig
 from peft import PeftModel, PeftConfig
 import json
 import datetime
+import shutil 
 
 try:
     from boson_multimodal.model.higgs_audio import HiggsAudioConfig, HiggsAudioModel
@@ -20,7 +21,7 @@ try:
     logging.info("Successfully imported Higgs Audio specific modules.")
 except ImportError:
     HIGGS_AVAILABLE = False
-    from transformers import AutoModel 
+    from transformers import AutoModel # Fallback, though likely to fail for 'higgs_audio'
     logging.warning(
         "Could not import Higgs Audio modules from 'boson_multimodal'. "
         "Falling back to `AutoModel`. This will likely fail if the model "
@@ -103,17 +104,56 @@ class HiggsAudioLoRaMerger:
         output_dir = Path(output_path)
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save merged model
+        # Save merged model (this should typically handle generation_config if it's a PreTrainedModel)
         logger.info(f"Saving merged model to {output_path}")
         merged_model.save_pretrained(
             output_path,
             # safe_serialization=True # 某些自定义模型可能不支持，如果保存失败可以注释掉
         )
         
-        # Save tokenizer
+        # 显式保存 generation_config.json
+        if hasattr(merged_model, 'generation_config') and merged_model.generation_config is not None:
+            logger.info(f"Saving generation_config.json from merged model to {output_path}")
+            # GenerationConfig 对象有自己的 save_pretrained 方法
+            merged_model.generation_config.save_pretrained(output_path)
+        else:
+            logger.warning("No generation_config found on the merged model. Attempting to copy from base model path.")
+            # 如果模型上没有 generation_config 属性，尝试从原始模型路径复制
+            base_gen_config_path = Path(self.base_model_path) / "generation_config.json"
+            if base_gen_config_path.exists():
+                shutil.copy(base_gen_config_path, output_dir / "generation_config.json")
+                logger.info(f"Copied generation_config.json from base model path: {base_gen_config_path}")
+            else:
+                logger.warning(f"No generation_config.json found in base model path: {base_gen_config_path}. Generation config will not be saved.")
+
+        # 保存 tokenizer 和相关文件
         if save_tokenizer:
-            logger.info(f"Saving tokenizer to {output_path}")
+            logger.info(f"Saving tokenizer and its configuration files to {output_path}")
             self.tokenizer.save_pretrained(output_path)
+            
+            # 只有当目标路径不存在该文件时才复制，避免覆盖。
+            tokenizer_files_to_copy = [
+                "special_tokens_map.json",
+                "tokenizer_config.json",
+                "tokenizer.json",  # 对于 fast tokenizers
+                "vocab.json",      # 对于 slow tokenizers (例如 BERT/GPT-2)
+                "added_tokens.json", # 如果有额外添加的 token
+            ]
+            
+            for file_name in tokenizer_files_to_copy:
+                src_path = Path(self.base_model_path) / file_name
+                dest_path = output_dir / file_name
+                
+                if src_path.exists() and not dest_path.exists():
+                    try:
+                        shutil.copy(src_path, dest_path)
+                        logger.info(f"Copied missing tokenizer file '{file_name}' from base model path to output directory.")
+                    except Exception as e:
+                        logger.warning(f"Failed to copy '{file_name}' from '{src_path}' to '{dest_path}': {e}")
+                elif not src_path.exists():
+                    logger.debug(f"Source tokenizer file '{file_name}' not found at '{src_path}'. Skipping copy.")
+                else:
+                    logger.debug(f"Tokenizer file '{file_name}' already exists in output directory or not needed for copy.")
             
         # Save model info
         model_info = {
@@ -233,7 +273,7 @@ def main():
     merger = HiggsAudioLoRaMerger(args.base_model_path, args.lora_adapter_path)
     
     # Load models
-    merger.load_base_model() # This now handles pad_token
+    merger.load_base_model()
     merger.load_lora_model()
     
     # Compare models if requested
