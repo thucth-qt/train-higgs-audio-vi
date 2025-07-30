@@ -73,6 +73,17 @@ Please make sure to modify all parameters before training, including data path, 
 python trainer/trainer.py
 ```
 
+## Merge lora
+```shell
+bash merge_model.sh \
+    --base_model_path xxx \
+    --lora_adapter_path xxx \
+    --output_path xxx \
+    --compare_models \
+    --test_input "A custom sentence for testing." \
+    --no_save_tokenizer
+```
+
 ## generate  生成
 
 ```shell
