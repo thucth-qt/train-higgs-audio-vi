@@ -628,7 +628,7 @@ def main():
     parser.add_argument("--audio_tokenizer_path", type=str, default="/root/code/higgs-audio-main/model_ckpt_tokenizer")
     
     # Data arguments
-    parser.add_argument("--train_data_dir", type=str, default="/root/code/higgs-audio-main/higgs_training_data_mini")
+    parser.add_argument("--train_data_dir", type=str, default="/root/code/higgs-audio-main/higgs_training_data_huo")
     parser.add_argument("--eval_data_dir", type=str, default="")
 
     # Task type arguments
@@ -640,11 +640,11 @@ def main():
                        help="Whether to include reference audio in system message")
     
     # Training arguments
-    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train-test")
-    parser.add_argument("--num_train_epochs", type=int, default=8)
-    parser.add_argument("--per_device_train_batch_size", type=int, default=1)
+    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train_lora")
+    parser.add_argument("--num_train_epochs", type=int, default=5)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=16)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=1)
-    parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--learning_rate", type=float, default=5e-5)
     parser.add_argument("--warmup_steps", type=int, default=100)
     parser.add_argument("--logging_steps", type=int, default=10)
     parser.add_argument("--save_steps", type=int, default=2500)
@@ -660,7 +660,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--wandb_project", default=None)
-    parser.add_argument("--logging_dir", type=str, default="./logs/huo-test")
+    parser.add_argument("--logging_dir", type=str, default="./logs/huo-lora")
     parser.add_argument("--report_to", type=str, default="tensorboard", 
                        choices=["tensorboard", "wandb", "none"])
     
@@ -773,7 +773,7 @@ def main():
     else:
         data_collator = ExtendedHiggsAudioSampleCollator(pad_token_id=tokenizer.pad_token_id)
         logger.warning("Using fallback collator")
-
+    config = AutoConfig.from_pretrained(args.model_path)
     # Initialize trainer
     trainer = HiggsAudioTrainer(
         model=model,
@@ -789,6 +789,7 @@ def main():
     trainer.train()
     
     # Save the final model
+    config.save_pretrained(args.output_dir)
     trainer.save_model()
     logger.info(f"Model saved to {args.output_dir}")
     
