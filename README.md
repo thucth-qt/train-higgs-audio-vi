@@ -10,6 +10,18 @@
 # Training repo for Higgs Audio v2  
 
 # Data Processing and Training Guide  数据处理与训练指南
+⚠️注意：当前仅实现了单说话人训练
+
+## NEW 
+
+- 优化了传入参数，删除了不必要的误导性传参
+- 使用了官方的 data 类
+- 支持 lora 训练，16G 即可训练
+- 提供 mini 训练集，欢迎使用
+
+## TODO
+- [ ] 多说话人训练
+- [ ] 新语言训练
 
 ## Data Processing  数据处理
 

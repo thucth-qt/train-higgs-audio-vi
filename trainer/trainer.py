@@ -57,43 +57,6 @@ except ImportError:
                 else:
                     setattr(new_sample, key, value)
             return new_sample
-    
-    class Message:
-        def __init__(self, role: str, content):
-            self.role = role
-            self.content = content
-    
-    class ChatMLSample:
-        def __init__(self, messages: List[Message]):
-            self.messages = messages
-    
-    class AudioContent:
-        def __init__(self, audio_url: str):
-            self.audio_url = audio_url
-    
-    class TextContent:
-        def __init__(self, text: str):
-            self.text = text
-    
-    def prepare_chatml_sample(chatml_sample, tokenizer):
-        """Fallback implementation of prepare_chatml_sample"""
-        # 简化的实现，仅处理基本的文本tokenization
-        all_text = ""
-        audio_contents = []
-        audio_label_contents = []
-        
-        for message in chatml_sample.messages:
-            if isinstance(message.content, str):
-                all_text += f"{message.role}: {message.content}\n"
-            elif isinstance(message.content, AudioContent):
-                audio_contents.append(message.content)
-                if message.role == "assistant":
-                    audio_label_contents.append(message.content)
-        
-        input_tokens = tokenizer.encode(all_text, add_special_tokens=True)
-        label_tokens = input_tokens.copy()  # 简化实现
-        
-        return input_tokens, label_tokens, audio_contents, audio_label_contents, None
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -277,8 +240,6 @@ class HiggsAudioDataset(Dataset):
         tokenizer: AutoTokenizer,
         audio_tokenizer,
         task_type: str = "zero_shot_voice_cloning",
-        max_audio_length: int = 30,
-        max_text_length: int = 512,
         sample_rate: int = 24000,
         use_metadata: bool = True,
         ref_audio_in_system_message: bool = False,
@@ -291,8 +252,6 @@ class HiggsAudioDataset(Dataset):
         self.tokenizer = tokenizer
         self.audio_tokenizer = audio_tokenizer
         self.task_type = task_type
-        self.max_audio_length = max_audio_length
-        self.max_text_length = max_text_length
         self.sample_rate = sample_rate
         self.use_metadata = use_metadata
         self.ref_audio_in_system_message = ref_audio_in_system_message
@@ -438,8 +397,8 @@ class HiggsAudioDataset(Dataset):
                 logger.warning(f"Sample {sample['audio_id']} is for multi_speaker_voice_cloning but has no valid 'ref_speakers' list in metadata.")
                 return [Message(role="system", content=MULTISPEAKER_DEFAULT_SYSTEM_MESSAGE)]
             
-            for ref_info in ref_speakers:
-                speaker_tag = ref_info.get("speaker_tag", "[SPEAKER0]")
+            for i, ref_info in enumerate(ref_speakers):
+                speaker_tag = ref_info.get("speaker_tag", f"[SPEAKER{i}]")
                 ref_audio_path = str(self.data_dir / ref_info["ref_audio_file"])
                 ref_transcript = ref_info.get("ref_transcript", "This is a voice sample.")
                 messages.append(Message(role="user", content=f"{speaker_tag} {ref_transcript}"))
@@ -669,32 +628,30 @@ def main():
     parser.add_argument("--audio_tokenizer_path", type=str, default="/root/code/higgs-audio-main/model_ckpt_tokenizer")
     
     # Data arguments
-    parser.add_argument("--train_data_dir", type=str, default="/root/code/higgs-audio-main/higgs_training_data_huo")
+    parser.add_argument("--train_data_dir", type=str, default="/root/code/higgs-audio-main/higgs_training_data_mini")
     parser.add_argument("--eval_data_dir", type=str, default="")
-    parser.add_argument("--max_audio_length", type=int, default=5000)
-    parser.add_argument("--max_text_length", type=int, default=512)
-    
+
     # Task type arguments
     parser.add_argument("--task_type", type=str, default="single_speaker_smart_voice",
                        choices=["zero_shot_voice_cloning", "single_speaker_smart_voice", 
                                "multi_speaker_smart_voice", "multi_speaker_voice_cloning"],
                        help="Training task type")
-    parser.add_argument("--ref_audio_in_system_message", action="store_true", default=False,
+    parser.add_argument("--ref_audio_in_system_message", action="store_true", default=True,
                        help="Whether to include reference audio in system message")
     
     # Training arguments
-    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train-v2")
-    parser.add_argument("--num_train_epochs", type=int, default=2)
-    parser.add_argument("--per_device_train_batch_size", type=int, default=4)
-    parser.add_argument("--per_device_eval_batch_size", type=int, default=4)
+    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train-test")
+    parser.add_argument("--num_train_epochs", type=int, default=8)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=1)
+    parser.add_argument("--per_device_eval_batch_size", type=int, default=1)
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--warmup_steps", type=int, default=100)
     parser.add_argument("--logging_steps", type=int, default=10)
-    parser.add_argument("--save_steps", type=int, default=1000)
+    parser.add_argument("--save_steps", type=int, default=2500)
     parser.add_argument("--eval_steps", type=int, default=500)
     
     # LoRA arguments
-    parser.add_argument("--use_lora", action="store_true", default=False)
+    parser.add_argument("--use_lora", action="store_true", default=True)
     parser.add_argument("--lora_rank", type=int, default=16)
     parser.add_argument("--lora_alpha", type=int, default=32)
     parser.add_argument("--lora_dropout", type=float, default=0.1)
@@ -703,14 +660,14 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--wandb_project", default=None)
-    parser.add_argument("--logging_dir", type=str, default="./logs/huo-v2")
+    parser.add_argument("--logging_dir", type=str, default="./logs/huo-test")
     parser.add_argument("--report_to", type=str, default="tensorboard", 
                        choices=["tensorboard", "wandb", "none"])
     
     # Freeze model components
     parser.add_argument("--freeze_audio_tower", action="store_true", default=False)
     parser.add_argument("--freeze_audio_encoder_proj", action="store_true", default=False)
-    parser.add_argument("--freeze_llm", action="store_true", default=True)
+    parser.add_argument("--freeze_llm", action="store_true", default=False)
 
 
     args = parser.parse_args()
@@ -756,8 +713,6 @@ def main():
         tokenizer,
         audio_tokenizer,
         task_type=args.task_type,
-        max_audio_length=args.max_audio_length,
-        max_text_length=args.max_text_length,
         ref_audio_in_system_message=args.ref_audio_in_system_message
     )
     
@@ -768,8 +723,6 @@ def main():
             tokenizer,
             audio_tokenizer,
             task_type=args.task_type,
-            max_audio_length=args.max_audio_length,
-            max_text_length=args.max_text_length,
             ref_audio_in_system_message=args.ref_audio_in_system_message
         )
     
