@@ -80,8 +80,7 @@ bash merge_model.sh \
     --lora_adapter_path xxx \
     --output_path xxx \
     --compare_models \
-    --test_input "A custom sentence for testing." \
-    --no_save_tokenizer
+    --test_input "A custom sentence for testing." 
 ```
 
 ## generate  生成
