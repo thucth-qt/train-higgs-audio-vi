@@ -163,7 +163,7 @@ Since the data I have is the speech of hearing-impaired individuals, for the pur
 |----------|----------------------|----------------------|
 | 大家好，我是火君，我居住在上海 | [点击播放/下载 (huojun.MP3)](test_demo/huojun.MP3) | [点击播放/下载 (huojun_gen.wav)](test_demo/huojun_gen.wav) |
 | 我爱机智流，机智流是最好的开源社区 | [点击播放/下载 (smartflowai.MP3)](test_demo/smartflowai.MP3) | [点击播放/下载 (smartflowai_gen.wav)](test_demo/smartflowai_gen.wav) |
-| tôi cũng như là những người lính như | [点击播放/下载 (vn_demo.MP3)](test_demo/vn_demo.MP3) | [点击播放/下载 (vn_demo.MP3)](test_demo/vn_demo.MP3) |
+| tôi cũng như là những người lính như | [点击播放/下载 (vn_demo.MP3)](test_demo/vn_demo.MP3) | [点击播放/下载 (vn_gen.wav)](test_demo/vn_gen.wav) |
 
 We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-huoing, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
 
