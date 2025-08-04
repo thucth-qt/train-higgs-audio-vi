@@ -134,6 +134,18 @@ Please make sure to modify all parameters before training, including data path, 
 python trainer/trainer.py
 ```
 
+Fine-tuning with LoRA requires the use of `--use_lora True`, like:
+
+```shell
+python trainer/trainer.py --use_lora True
+```
+
+It should be noted that when using LoRA to fine-tune new voices, there may be cases where normal output cannot be achieved. This issue has currently been found in the migration fine-tuning of Vietnamese, and it is not yet clear whether it is a training problem or other circumstances. Based on past experience, when training a model to learn knowledge it has never been exposed to, it is better to use full fine-tuning with the parameter `--use_lora False`.
+
+
+
+
+
 ## Merge lora
 ```shell
 bash merge_model.sh \
