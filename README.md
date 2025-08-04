@@ -9,21 +9,22 @@
 
 # Training repo for Higgs Audio v2  
 
-# Data Processing and Training Guide  数据处理与训练指南
-⚠️注意：当前仅实现了单说话人训练
+# Data Processing and Training Guide  
+数据处理与训练指南  
 
-## NEW 
+⚠️ Note: Currently, only single-speaker training is implemented  
 
-- 新语言训练
-- 实验性功能：支持 DDP 详情请看：`DDP_training.sh`
-- 优化了传入参数，删除了不必要的误导性传参
-- 使用了官方的 data 类
-- 支持 lora 训练，16G 即可训练
-- 提供 mini 训练集，欢迎使用
+## NEW  
 
-## TODO
-- [ ] 多说话人训练
+- New language training  
+- Experimental feature: DDP support. For details, please refer to: `DDP_training.sh`  
+- Optimized input parameters, removed unnecessary misleading parameters  
+- Adopted official data classes  
+- Supports LoRA training, 16G memory is sufficient for training  
+- Provides a mini training set, welcome to use  
 
+## TODO  
+- [ ] Multi-speaker training
 
 ## Data Processing  数据处理
 
@@ -53,17 +54,17 @@ Obtain data in the following format
 
 ```shell
 higgs_training_data/
-├── metadata.json                  # 数据集元数据总文件
-├── huo_speaker_000001.wav         # 说话人huo的音频文件1
-├── huo_speaker_000001.txt         # 对应音频的文本转录
-├── huo_speaker_000002.wav         # 说话人huo的音频文件2
-├── huo_speaker_000002.txt         # 对应音频的文本转录
-├── ...                            # 更多huo_speaker的音频/文本文件
-├── huo_speaker_000051.wav         # 说话人huo的音频文件1
-├── huo_speaker_000051.txt         # 对应音频的文本转录
-├── huo_speaker_000052.wav         # 说话人huo的音频文件2
-├── huo_speaker_000052.txt         # 对应音频的文本转录
-└── ...                            # 更多huo_speaker的音频/文本文件
+├── metadata.json                  # Overall metadata file of the dataset
+├── huo_speaker_000001.wav         # Audio file 1 of speaker "huo"
+├── huo_speaker_000001.txt         # Text transcription corresponding to the audio
+├── huo_speaker_000002.wav         # Audio file 2 of speaker "huo"
+├── huo_speaker_000002.txt         # Text transcription corresponding to the audio
+├── ...                            # More audio/text files of "huo_speaker"
+├── huo_speaker_000051.wav         # Audio file 1 of speaker "huo"
+├── huo_speaker_000051.txt         # Text transcription corresponding to the audio
+├── huo_speaker_000052.wav         # Audio file 2 of speaker "huo"
+├── huo_speaker_000052.txt         # Text transcription corresponding to the audio
+└── ...                            # More audio/text files of "huo_speaker"
 ```
 
 metadata.json 格式
@@ -93,7 +94,7 @@ metadata.json 格式
       "speaker_name": "Huo",
       "scene": "recording_system",
       "emotion": "alerting",
-      "ref_audio_file": 如果你是需要有参考音色，请加入此字段，这会在"zero_shot_voice_cloning"模型下生效
+      "ref_audio_file": If you need a reference tone color, please add this field, which will take effect under the "zero_shot_voice_cloning" model. 如果你是需要有参考音色，请加入此字段，这会在"zero_shot_voice_cloning"模型下生效
       "language": "zh",
       "gender": "unknown",
       "quality_score": 1.0,
@@ -110,7 +111,7 @@ metadata.json 格式
       "speaker_name": "Huo",
       "scene": "quiet_room",
       "emotion": "questioning",
-      "ref_audio_file": 如果你是需要有参考音色，请加入此字段，这会在"zero_shot_voice_cloning"模型下生效
+      "ref_audio_file": If you need a reference tone color, please add this field, which will take effect under the "zero_shot_voice_cloning" model. 如果你是需要有参考音色，请加入此字段，这会在"zero_shot_voice_cloning"模型下生效
       "language": "zh",
       "gender": "unknown",
       "quality_score": 1.0,
@@ -159,7 +160,7 @@ Since the data I have is the speech of hearing-impaired individuals, for the pur
 
 
 
-| 文本内容 | 真实声音（用户后录） | 生成声音（脚本输出） |
+| text 文本内容 | real record 真实声音（用户后录） | generate record生成声音（脚本输出） |
 |----------|----------------------|----------------------|
 | 大家好，我是火君，我居住在上海 | [点击播放/下载 (huojun.MP3)](test_demo/huojun.MP3) | [点击播放/下载 (huojun_gen.wav)](test_demo/huojun_gen.wav) |
 | 我爱机智流，机智流是最好的开源社区 | [点击播放/下载 (smartflowai.MP3)](test_demo/smartflowai.MP3) | [点击播放/下载 (smartflowai_gen.wav)](test_demo/smartflowai_gen.wav) |
