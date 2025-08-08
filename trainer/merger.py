@@ -233,13 +233,13 @@ def main():
     parser.add_argument(
         "--lora_adapter_path", 
         type=str, 
-        default="",
+        required=True,
         help="Path to LoRA adapter directory"
     )
     parser.add_argument(
         "--output_path", 
         type=str, 
-        default="",
+        required=True,
         help="Path to save the merged model"
     )
     parser.add_argument(
