@@ -26,7 +26,7 @@
 ## TODO  
 - [ ] Multi-speaker training
 
-## Training Environment Configuration 训练环境配置
+## Training Environment Setup 训练环境配置
 
 ### Option 3: Using conda
 ```bash
