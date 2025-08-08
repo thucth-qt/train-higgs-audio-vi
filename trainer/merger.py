@@ -65,7 +65,7 @@ class HiggsAudioLoRaMerger:
                 self.base_model_path,
                 config=config,
                 trust_remote_code=True,
-                torch_dtype=torch.float16,
+                torch_dtype=torch.bfloat16,
                 device_map="auto"
             )
         else:

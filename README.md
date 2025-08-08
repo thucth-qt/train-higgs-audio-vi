@@ -26,6 +26,19 @@
 ## TODO  
 - [ ] Multi-speaker training
 
+## Training Environment Configuration 训练环境配置
+
+### Option 3: Using conda
+```bash
+git clone https://github.com/JimmyMa99/train-higgs-audio.git
+cd train-higgs-audio
+
+conda create -n higgs_audio_env python=3.10
+conda activate higgs_audio_env
+pip install -r requirements_train.txt
+pip install -e .
+```
+
 ## Data Processing  数据处理
 
 First, prepare your audio and text data in the required format.  

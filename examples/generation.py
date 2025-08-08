@@ -280,7 +280,10 @@ class HiggsAudioModelClient:
                 )
             )
             chatml_sample = ChatMLSample(messages=messages + generation_messages)
-            input_tokens, _, _, _ = prepare_chatml_sample(chatml_sample, self._tokenizer)
+            try:
+                input_tokens, _, _, _ = prepare_chatml_sample(chatml_sample, self._tokenizer)
+            except:
+                input_tokens, label_tokens, audio_contents, audio_label_contents, speaker_id = prepare_chatml_sample(chatml_sample, self._tokenizer)
             postfix = self._tokenizer.encode(
                 "<|start_header_id|>assistant<|end_header_id|>\n\n", add_special_tokens=False
             )
@@ -475,13 +478,13 @@ def prepare_generation_context(scene_prompt, ref_audio, ref_audio_in_system_mess
 @click.option(
     "--model_path",
     type=str,
-    default="bosonai/higgs-audio-v2-generation-3B-base",
+    default="/root/code/higgs-audio-main/model_ckpt",
     help="Output wav file path.",
 )
 @click.option(
     "--audio_tokenizer",
     type=str,
-    default="bosonai/higgs-audio-v2-tokenizer",
+    default="/root/code/higgs-audio-main/model_ckpt_tokenizer",
     help="Audio tokenizer path, if not set, use the default one.",
 )
 @click.option(

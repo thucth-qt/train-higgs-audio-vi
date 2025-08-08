@@ -628,7 +628,7 @@ def main():
     parser.add_argument("--audio_tokenizer_path", type=str, default="/root/code/higgs-audio-main/model_ckpt_tokenizer")
     
     # Data arguments
-    parser.add_argument("--train_data_dir", type=str, default="/root/code/higgs-audio-main/higgs_training_data_huo")
+    parser.add_argument("--train_data_dir", type=str, default="higgs_training_data_mini")
     parser.add_argument("--eval_data_dir", type=str, default="")
 
     # Task type arguments
@@ -640,7 +640,7 @@ def main():
                        help="Whether to include reference audio in system message")
     
     # Training arguments
-    parser.add_argument("--output_dir", type=str, default="./higgs_audio_huo_train_lora")
+    parser.add_argument("--output_dir", type=str, default="./output/higgs_audio_huo_train_full")
     parser.add_argument("--num_train_epochs", type=int, default=5)
     parser.add_argument("--per_device_train_batch_size", type=int, default=16)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=1)
@@ -651,7 +651,7 @@ def main():
     parser.add_argument("--eval_steps", type=int, default=500)
     
     # LoRA arguments
-    parser.add_argument("--use_lora", action="store_true", default=True)
+    parser.add_argument("--use_lora", action="store_true", default=False)
     parser.add_argument("--lora_rank", type=int, default=16)
     parser.add_argument("--lora_alpha", type=int, default=32)
     parser.add_argument("--lora_dropout", type=float, default=0.1)
