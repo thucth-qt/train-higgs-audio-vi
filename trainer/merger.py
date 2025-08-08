@@ -227,7 +227,7 @@ def main():
     parser.add_argument(
         "--base_model_path", 
         type=str, 
-        required=True,
+        default="bosonai/higgs-audio-v2-generation-3B-base",
         help="Path to the local base Higgs Audio model directory"
     )
     parser.add_argument(
@@ -264,8 +264,6 @@ def main():
     args = parser.parse_args()
     
     # Validate paths
-    if not os.path.exists(args.base_model_path):
-        raise ValueError(f"Base model path does not exist: {args.base_model_path}")
     if not os.path.exists(args.lora_adapter_path):
         raise ValueError(f"LoRA adapter path does not exist: {args.lora_adapter_path}")
         
