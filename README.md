@@ -56,7 +56,7 @@ Run the script
 运行脚本
 
 ```shell
-python convert_jsonl_to_higgs.py \
+python tools/convert_jsonl_to_higgs.py \
   --jsonl_files /path/to/audio.jsonl \
   --output_dir ./higgs_training_data \
   --copy_audio True
@@ -147,10 +147,10 @@ Please make sure to modify all parameters before training, including data path, 
 python trainer/trainer.py
 ```
 
-Fine-tuning with LoRA requires the use of `--use_lora True`, like:
+Fine-tuning with LoRA requires the use of `--use_lora`, like:
 
 ```shell
-python trainer/trainer.py --use_lora True
+python trainer/trainer.py --use_lora
 ```
 
 It should be noted that when using LoRA to fine-tune new voices, there may be cases where normal output cannot be achieved. This issue has currently been found in the migration fine-tuning of Vietnamese, and it is not yet clear whether it is a training problem or other circumstances. Based on past experience, when training a model to learn knowledge it has never been exposed to, it is better to use full fine-tuning with the parameter `--use_lora False`.
