@@ -202,7 +202,7 @@ Since the data I have is the speech of hearing-impaired individuals, for the pur
 | 我爱机智流，机智流是最好的开源社区 | [点击播放/下载 (smartflowai.MP3)](test_demo/smartflowai.MP3) | [点击播放/下载 (smartflowai_gen.wav)](test_demo/smartflowai_gen.wav) |
 | tôi cũng như là những người lính như | [点击播放/下载 (vn_demo.MP3)](test_demo/vn_demo.MP3) | [点击播放/下载 (vn_gen.wav)](test_demo/vn_gen.wav) |
 
-训练前后对比
+训练前后对比(没有使用参考音频)
 | text 文本内容 | before training 训练前 | after training 训练后 |
 |----------|----------------------|----------------------|
 | 你好，我是火君 | [点击播放/下载 (huojun.MP3)](test_demo/generation_for_huo_no_ref_no_train.wav) | [点击播放/下载 (huojun_gen.wav)](test_demo/generation_for_huo_no_ref.wav) |
