@@ -202,6 +202,11 @@ Since the data I have is the speech of hearing-impaired individuals, for the pur
 | 我爱机智流，机智流是最好的开源社区 | [点击播放/下载 (smartflowai.MP3)](test_demo/smartflowai.MP3) | [点击播放/下载 (smartflowai_gen.wav)](test_demo/smartflowai_gen.wav) |
 | tôi cũng như là những người lính như | [点击播放/下载 (vn_demo.MP3)](test_demo/vn_demo.MP3) | [点击播放/下载 (vn_gen.wav)](test_demo/vn_gen.wav) |
 
+训练前后对比
+| text 文本内容 | before training 训练前 | after training 训练后 |
+|----------|----------------------|----------------------|
+| 你好，我是火君 | [点击播放/下载 (huojun.MP3)](test_demo/generation_for_huo_no_ref_no_train.wav) | [点击播放/下载 (huojun_gen.wav)](test_demo/generation_for_huo_no_ref.wav) |
+
 We are open-sourcing Higgs Audio v2, a powerful audio foundation model pretrained on over 10 million hours of audio data and a diverse set of text data. Despite having no post-training or fine-huoing, Higgs Audio v2 excels in expressive audio generation, thanks to its deep language and acoustic understanding.
 
 On [EmergentTTS-Eval](https://github.com/boson-ai/emergenttts-eval-public), it achieves win rates of **75.7%** and **55.7%** over "gpt-4o-mini-tts" on the "Emotions" and "Questions" categories, respectively. It also obtains state-of-the-art performance on traditional TTS benchmarks like Seed-TTS Eval and Emotional Speech Dataset (ESD). Moreover, the model demonstrates capabilities rarely seen in previous systems, including generating natural multi-speaker dialogues in multiple languages, automatic prosody adaptation during narration, melodic humming with the cloned voice, and simultaneous generation of speech and background music.
