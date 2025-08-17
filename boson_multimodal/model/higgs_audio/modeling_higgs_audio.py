@@ -1141,16 +1141,15 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
 
         return hidden_states, all_hidden_states, all_self_attns
 
-
     def compute_losses(self, logits, audio_logits, labels, label_audio_ids, audio_out_mask):
         """
-        计算文本和音频的loss
+        计算文本和音频的loss (V2 - 修正版)
         
         Args:
             logits: 文本logits, shape [batch_size, seq_len, vocab_size]
             audio_logits: 音频logits, shape [num_audio_tokens, num_codebooks, codebook_size] 
             labels: 文本标签, shape [batch_size, seq_len]
-            label_audio_ids: 音频标签, shape [num_codebooks, audio_seq_len]
+            label_audio_ids: 音频标签, shape [num_codebooks, num_audio_tokens_in_batch]
             audio_out_mask: 音频输出mask, shape [batch_size, seq_len]
         
         Returns:
@@ -1158,136 +1157,98 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
             llm_loss: 文本loss
             audio_loss: 音频loss
         """
-        # 强制使用CUDA设备（如果可用）
-        if torch.cuda.is_available():
-            device = torch.device('cuda')
-        else:
-            device = torch.device('cpu')
+        device = logits.device if logits is not None else (audio_logits.device if audio_logits is not None else 'cpu')
         
-        print(f"Target device: {device}")
-        
-        # 初始化loss
-        loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-        llm_loss = None
-        audio_loss = None
-        
-        # 验证输入tensor并移动到目标设备
-        # print("Before device transfer:")
-        # if logits is not None:
-        #     print(f"logits device: {logits.device}, shape: {logits.shape}")
-        #     logits = logits.to(device)
-        # if labels is not None:
-        #     print(f"labels device: {labels.device}, shape: {labels.shape}")
-        #     labels = labels.to(device)
-        # if audio_logits is not None:
-        #     print(f"audio_logits device: {audio_logits.device}, shape: {audio_logits.shape}")
-        #     audio_logits = audio_logits.to(device)
-        # if label_audio_ids is not None:
-        #     print(f"label_audio_ids device: {label_audio_ids.device}, shape: {label_audio_ids.shape}")
-        #     label_audio_ids = label_audio_ids.to(device)
-        # if audio_out_mask is not None:
-        #     audio_out_mask = audio_out_mask.to(device)
-        
-        # print("After device transfer:")
-        # if logits is not None:
-        #     print(f"logits device: {logits.device}")
-        # if labels is not None:
-        #     print(f"labels device: {labels.device}")
-        # if audio_logits is not None:
-        #     print(f"audio_logits device: {audio_logits.device}")
-        # if label_audio_ids is not None:
-        #     print(f"label_audio_ids device: {label_audio_ids.device}")
-        
-        # 1. 计算文本loss (LLM loss)
+        # --- 初始化loss值为 requires_grad=True 的张量，确保即使某个loss为0也能参与计算图 ---
+        llm_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
+        audio_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
+
+        # 1. 计算文本loss (LLM loss) 
         if labels is not None and logits is not None and logits.numel() > 0 and labels.numel() > 0:
-            try:
-                # 标准的causal language modeling loss
-                shift_logits = logits[..., :-1, :].contiguous()  # [batch, seq_len-1, vocab_size]
-                shift_labels = labels[..., 1:].contiguous()      # [batch, seq_len-1]
-                
-                # 展平
-                flat_logits = shift_logits.view(-1, shift_logits.size(-1))  # [batch*(seq_len-1), vocab_size]
-                flat_labels = shift_labels.view(-1)                         # [batch*(seq_len-1)]
-                
-                # 只计算非-100位置的loss
-                valid_mask = flat_labels != -100
-                if valid_mask.sum() > 0:
-                    llm_loss = F.cross_entropy(
-                        flat_logits[valid_mask], 
-                        flat_labels[valid_mask], 
-                        reduction='mean'
-                    )
-                    loss = loss + llm_loss
-                    print(f"LLM loss computed: {llm_loss.item()}, device: {llm_loss.device}")
-                else:
-                    llm_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-                    print("No valid LLM tokens to compute loss")
-            except Exception as e:
-                print(f"Error computing LLM loss: {e}")
-                llm_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-        else:
-            llm_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-            print("Skipping LLM loss computation - invalid inputs")
-        
-        # 2. 计算音频loss
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            
+            flat_logits = shift_logits.view(-1, shift_logits.size(-1))
+            flat_labels = shift_labels.view(-1)
+            
+            # 只计算非-100位置的loss (HuggingFace标准做法)
+            valid_mask = flat_labels != -100
+            if valid_mask.sum() > 0:
+                llm_loss = F.cross_entropy(
+                    flat_logits[valid_mask], 
+                    flat_labels[valid_mask], 
+                    reduction='mean'
+                )
+
+        # 2. 计算音频loss (Audio loss) - *** 这是关键的修正部分 ***
         if (audio_logits is not None and 
             label_audio_ids is not None and 
             audio_logits.numel() > 0 and 
             label_audio_ids.numel() > 0):
+
+            # --- 断言：检查进入loss计算前，logits和labels的序列长度是否一致 ---
+            # audio_logits 的第一维是序列长度，即整个batch中audio token的总数
+            num_audio_tokens_from_logits = audio_logits.shape[0]
+            # label_audio_ids 的第二维是序列长度
+            num_audio_tokens_from_labels = label_audio_ids.shape[1]
+
+            # 这个断言至关重要，如果它失败，说明数据整理(collator)或模型forward逻辑有问题
+            assert num_audio_tokens_from_logits == num_audio_tokens_from_labels, (
+                f"音频Logits和Labels的序列长度不匹配! "
+                f"Logits长度: {num_audio_tokens_from_logits}, "
+                f"Labels长度: {num_audio_tokens_from_labels}. "
+                "请检查数据整理(Collator)和HiggsAudioDataset的实现。"
+            )
+
+            # --- 核心修正：正确的自回归错位学习 ---
+            # 目标：用第t个token的预测(logits)去和第t+1个token的真值(label)做比较
+            # 因此，我们需要对齐 audio_logits 和 label_audio_ids，并都去掉序列中的一个元素
+
+            # 使用 0 到 n-1 时刻的 audio_logits
+            shifted_logits = audio_logits[:-1, :, :].contiguous()
+            # 使用 1 到 n 时刻的 label_audio_ids
+            shifted_labels = label_audio_ids[:, 1:].contiguous()
+
+            # 再次断言，确保错位后的长度仍然一致
+            assert shifted_logits.shape[0] == shifted_labels.shape[1], (
+                "错位后的音频Logits和Labels长度不匹配!"
+            )
             
-            try:
-                # audio_logits: [num_audio_tokens, num_codebooks, codebook_size]
-                # label_audio_ids: [num_codebooks, audio_seq_len]
+            # 如果序列长度大于1，才有可能计算loss
+            if shifted_logits.shape[0] > 0:
+                num_codebooks = min(shifted_logits.shape[1], shifted_labels.shape[0])
+                audio_losses = []
+
+                for cb in range(num_codebooks):
+                    # cb_logits shape: [seq_len-1, codebook_size]
+                    cb_logits = shifted_logits[:, cb, :]
+                    # cb_labels shape: [seq_len-1]
+                    cb_labels = shifted_labels[cb, :]
+                    
+                    # 同样，只对非-100的标签计算loss
+                    valid_mask = cb_labels != -100
+                    if valid_mask.sum() > 0:
+                        cb_loss = F.cross_entropy(
+                            cb_logits[valid_mask], 
+                            cb_labels[valid_mask], 
+                            reduction='mean'
+                        )
+                        audio_losses.append(cb_loss)
                 
-                num_audio_tokens = audio_logits.shape[0]
-                num_codebooks = min(audio_logits.shape[1], label_audio_ids.shape[0])
-                
-                print(f"Audio loss computation: num_audio_tokens={num_audio_tokens}, num_codebooks={num_codebooks}")
-                
-                if num_audio_tokens > 0 and num_codebooks > 0:
-                    audio_losses = []
-                    
-                    # 使用label_audio_ids作为音频标签
-                    audio_seq_len = min(num_audio_tokens, label_audio_ids.shape[1])
-                    
-                    for cb in range(num_codebooks):
-                        cb_logits = audio_logits[:audio_seq_len, cb, :]  # [audio_seq_len, codebook_size]
-                        cb_labels = label_audio_ids[cb, :audio_seq_len]  # [audio_seq_len]
-                        
-                        # 过滤掉-100的标签
-                        valid_mask = cb_labels != -100
-                        if valid_mask.sum() > 0:
-                            cb_loss = F.cross_entropy(
-                                cb_logits[valid_mask], 
-                                cb_labels[valid_mask], 
-                                reduction='mean'
-                            )
-                            audio_losses.append(cb_loss)
-                            print(f"Codebook {cb} loss: {cb_loss.item()}")
-                    
-                    if audio_losses:
-                        audio_loss = torch.stack(audio_losses).mean()
-                        loss = loss + audio_loss
-                        print(f"Audio loss computed: {audio_loss.item()}, device: {audio_loss.device}")
-                    else:
-                        audio_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-                        print("No valid audio tokens to compute loss")
-                else:
-                    audio_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-                    print("No audio tokens or codebooks available")
-                    
-            except Exception as e:
-                print(f"Error computing audio loss: {e}")
-                audio_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-        else:
-            audio_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-            print("Skipping audio loss computation - invalid inputs")
-        
-        print(f"Final loss: {loss.item()}, device: {loss.device}")
-        print(f"LLM loss: {llm_loss.item() if llm_loss is not None else 'None'}")
-        print(f"Audio loss: {audio_loss.item() if audio_loss is not None else 'None'}")
-        
-        return loss, llm_loss, audio_loss
+                if audio_losses:
+                    # 对所有codebook的loss求平均
+                    audio_loss = torch.stack(audio_losses).mean()
+
+        # --- 合并总Loss ---
+        # 只有当loss大于0时才相加，避免不必要的计算
+        total_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
+        if llm_loss.item() > 0:
+            total_loss = total_loss + llm_loss
+        if audio_loss.item() > 0:
+            total_loss = total_loss + audio_loss
+            
+        return total_loss, llm_loss, audio_loss
+
 
     def forward(
         self,
