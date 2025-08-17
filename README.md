@@ -9,6 +9,17 @@
 
 # Training repo for Higgs Audio v2  
 
+## 🎥 Tutorial Videos
+
+| Platform | Link |
+|----------|------|
+| YouTube | [![Tutorial](http://img.youtube.com/vi/u7og6yAx91g/0.jpg)](https://www.youtube.com/watch?v=u7og6yAx91g) |
+| 哔哩哔哩 | [![训练脚本教程](https://i0.hdslb.com/bfs/archive/placeholder.jpg)](https://www.bilibili.com/video/BV1zaYnzoEoD/) |
+
+> 📖 Screen recording videos showing how to use the training and generation scripts for Higgs Audio v2.
+
+
+
 # Data Processing and Training Guide  
 数据处理与训练指南  
 
