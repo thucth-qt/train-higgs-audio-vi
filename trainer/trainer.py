@@ -377,7 +377,7 @@ class HiggsAudioDataset(Dataset):
         if self.task_type == "zero_shot_voice_cloning":
             ref_audio = sample.get("ref_audio_file")
             if not ref_audio:
-                logger.warning(f"Sample {sample['audio_id']} is for zero_shot_voice_cloning but has no 'ref_audio_file'.")
+                logger.warning(f"Sample {sample['id']} is for zero_shot_voice_cloning but has no 'ref_audio_file'.")
                 return [Message(role="system", content="Generate audio following instruction.")]
 
             ref_audio_path = str(self.data_dir / ref_audio)
@@ -628,7 +628,7 @@ def main():
     parser.add_argument("--audio_tokenizer_path", type=str, default="/root/code/higgs-audio-main/model_ckpt_tokenizer")
     
     # Data arguments
-    parser.add_argument("--train_data_dir", type=str, default="higgs_training_data_mini")
+    parser.add_argument("--train_data_dir", type=str, default="/root/code/higgs-audio-main/higgs_training_data_huo")
     parser.add_argument("--eval_data_dir", type=str, default="")
 
     # Task type arguments
@@ -636,18 +636,18 @@ def main():
                        choices=["zero_shot_voice_cloning", "single_speaker_smart_voice", 
                                "multi_speaker_smart_voice", "multi_speaker_voice_cloning"],
                        help="Training task type")
-    parser.add_argument("--ref_audio_in_system_message", action="store_true", default=True,
+    parser.add_argument("--ref_audio_in_system_message", action="store_true", default=False,
                        help="Whether to include reference audio in system message")
     
     # Training arguments
-    parser.add_argument("--output_dir", type=str, default="./output/higgs_audio_huo_train_full")
-    parser.add_argument("--num_train_epochs", type=int, default=5)
-    parser.add_argument("--per_device_train_batch_size", type=int, default=16)
+    parser.add_argument("--output_dir", type=str, default="./output/huo_train-vxx")
+    parser.add_argument("--num_train_epochs", type=int, default=3)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=1)
-    parser.add_argument("--learning_rate", type=float, default=5e-5)
-    parser.add_argument("--warmup_steps", type=int, default=100)
-    parser.add_argument("--logging_steps", type=int, default=10)
-    parser.add_argument("--save_steps", type=int, default=2500)
+    parser.add_argument("--learning_rate", type=float, default=4e-5)
+    parser.add_argument("--warmup_steps", type=int, default=2000)
+    parser.add_argument("--logging_steps", type=int, default=1)
+    parser.add_argument("--save_steps", type=int, default=5000)
     parser.add_argument("--eval_steps", type=int, default=500)
     
     # LoRA arguments
@@ -660,7 +660,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--wandb_project", default=None)
-    parser.add_argument("--logging_dir", type=str, default="./logs/huo-lora")
+    parser.add_argument("--logging_dir", type=str, default="./logs/huo_train-vxx")
     parser.add_argument("--report_to", type=str, default="tensorboard", 
                        choices=["tensorboard", "wandb", "none"])
     
