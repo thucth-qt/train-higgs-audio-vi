@@ -60,7 +60,7 @@ First, prepare your audio and text data in the required format.
 ms-swift data format:  
 ms-swift 数据格式:
 ```jsonl
-{"messages": [{"role": "assistant", "content": "<think>描述了今天天气真不错"}], "audios": ["/xxx/x.wav"]}
+{"messages": [{"role": "assistant", "content": "<audio>描述了今天天气真不错"}], "audios": ["/xxx/x.wav"]}
 ```
 
 Run the script  
