@@ -178,17 +178,222 @@ def process_parquet_files(input_dir, output_dir, dataset_name="huo", max_workers
     print(f"Insgesamt {processed_count} von {total_samples} Samples erfolgreich verarbeitet.")
 
 
-if __name__ == '__main__':
-    # ***** Bitte passen Sie die folgenden Variablen an Ihre Pfade an *****
-    INPUT_DATA_DIR = '/root/datasets/doof-ferb/vlsp2020_vinai_100h/data'
-    OUTPUT_DATA_DIR = '/root/code/higgs-audio-main/higgs_training_data_mini_vn'
-    DATASET_NAME = 'vn'
+def process_csv_dataset(csv_path, audio_dir, output_dir, dataset_name="vn", max_samples_per_speaker=500, max_workers=None):
+    """
+    Process CSV-based Vietnamese TTS dataset (like your balanced dataset)
+    with multithreading for better performance.
+    """
+    import shutil
+    from datetime import datetime
     
-    # Optional: Legen Sie die maximale Anzahl von Worker-Threads fest.
-    # Wenn Sie None angeben, wird ein sinnvoller Standardwert berechnet.
-    MAX_WORKERS = 16 
+    if max_workers is None:
+        max_workers = (os.cpu_count() or 4) + 4
+    
+    print(f"Processing CSV dataset: {csv_path}")
+    
+    # Load CSV data
+    df = pd.read_csv(csv_path, low_memory=False)
+    print(f"Loaded {len(df)} samples from CSV")
+    
+    # Filter valid samples
+    valid_df = df[df['valid'] == True].copy() if 'valid' in df.columns else df.copy()
+    
+    # Duration filtering (1-15 seconds)
+    if 'duration' in valid_df.columns:
+        valid_df = valid_df[(valid_df['duration'] >= 1.0) & (valid_df['duration'] <= 15.0)]
+    
+    # Clean speaker IDs and limit samples per speaker
+    def clean_speaker_id(speaker):
+        if pd.isna(speaker):
+            return "unknown_speaker"
+        cleaned = str(speaker).replace("@", "").replace("_male", "").replace("_female", "")
+        return cleaned.lower().replace(" ", "_")
+    
+    valid_df['clean_speaker_id'] = valid_df['speaker'].apply(clean_speaker_id)
+    balanced_df = valid_df.groupby('clean_speaker_id').head(max_samples_per_speaker)
+    
+    print(f"Filtered to {len(balanced_df)} samples from {len(balanced_df['clean_speaker_id'].unique())} speakers")
+    
+    # Prepare output directory
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Process samples with multithreading
+    def process_csv_sample(sample_data):
+        try:
+            idx, row = sample_data['idx'], sample_data['row']
+            speaker_id = row['clean_speaker_id']
+            sample_id = f"{speaker_id}_{sample_data['speaker_counter']:06d}"
+            
+            # File paths
+            audio_filename = f"{sample_id}.wav"
+            text_filename = f"{sample_id}.txt"
+            
+            # Input audio path
+            input_audio_path = row.get('raw_path', os.path.join(audio_dir, row.get('wav_filename', '')))
+            if not os.path.exists(input_audio_path):
+                return None, None
+            
+            # Output paths
+            output_audio_path = output_path / audio_filename
+            output_text_path = output_path / text_filename
+            
+            # Copy audio file
+            shutil.copy2(input_audio_path, output_audio_path)
+            
+            # Write text file
+            text_content = str(row.get('normalized_text', row.get('text', '')))
+            if not text_content or pd.isna(text_content):
+                return None, None
+                
+            with open(output_text_path, 'w', encoding='utf-8') as f:
+                f.write(text_content)
+            
+            # Vietnamese emotion analysis
+            def analyze_emotion(text):
+                if not text or pd.isna(text):
+                    return "neutral"
+                text = str(text).lower()
+                if any(word in text for word in ["?", "？", "gì", "nào", "sao"]):
+                    return "questioning"
+                elif any(word in text for word in ["!", "！", "tuyệt", "tốt", "đúng"]):
+                    return "affirming"
+                elif any(word in text for word in ["lỗi", "sai", "không", "nguy hiểm"]):
+                    return "alerting"
+                return "neutral"
+            
+            # Create sample metadata
+            sample_entry = {
+                "id": sample_id,
+                "audio_file": audio_filename,
+                "transcript_file": text_filename,
+                "duration": float(row.get('duration', 0.0)),
+                "speaker_id": speaker_id,
+                "speaker_name": str(row.get('speaker', 'unknown')),
+                "scene": "quiet_room",
+                "emotion": analyze_emotion(text_content),
+                "language": "vi",
+                "gender": str(row.get('gender', 'unknown')),
+                "quality_score": 1.0,
+                "original_audio_path": input_audio_path,
+                "user_instruction": "<audio>",
+                "task_type": "audio_generation",
+                "topic": str(row.get('topic', '')),
+                "dialect": str(row.get('dialect', '')),
+                "sample_rate": int(row.get('sample_rate', 24000))
+            }
+            
+            return sample_entry, sample_entry['duration']
+            
+        except Exception as e:
+            print(f"Error processing sample {idx}: {e}")
+            return None, None
+    
+    # Prepare tasks with speaker counters
+    speaker_counters = {}
+    tasks_data = []
+    
+    for idx, (_, row) in enumerate(balanced_df.iterrows()):
+        speaker_id = row['clean_speaker_id']
+        if speaker_id not in speaker_counters:
+            speaker_counters[speaker_id] = 0
+        
+        tasks_data.append({
+            'idx': idx,
+            'row': row,
+            'speaker_counter': speaker_counters[speaker_id]
+        })
+        speaker_counters[speaker_id] += 1
+    
+    # Process with multithreading
+    metadata_samples = []
+    total_duration = 0.0
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with tqdm(total=len(tasks_data), desc="Processing samples") as pbar:
+            futures = [executor.submit(process_csv_sample, task) for task in tasks_data]
+            
+            for future in concurrent.futures.as_completed(futures):
+                result, duration = future.result()
+                if result and duration is not None:
+                    metadata_samples.append(result)
+                    total_duration += duration
+                pbar.update(1)
+    
+    # Create metadata
+    avg_duration = total_duration / len(metadata_samples) if metadata_samples else 0
+    
+    metadata = {
+        "dataset_info": {
+            "total_samples": len(metadata_samples),
+            "speakers": list(speaker_counters.keys()),
+            "languages": ["vi"],
+            "total_duration": round(total_duration, 2),
+            "avg_duration": round(avg_duration, 2),
+            "created_from": [csv_path],
+            "created_at": datetime.now().isoformat(),
+            "dataset_type": "vietnamese_tts_csv",
+            "sample_rate": 24000,
+            "speaker_counts": speaker_counters
+        },
+        "samples": metadata_samples
+    }
+    
+    # Save metadata
+    metadata_path = output_path / "metadata.json"
+    with open(metadata_path, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+    
+    print(f"\nProcessing completed! {len(metadata_samples)} samples saved to: {output_path}")
+    return str(output_path)
 
-    input_dir_expanded = os.path.expanduser(INPUT_DATA_DIR)
-    output_dir_expanded = os.path.expanduser(OUTPUT_DATA_DIR)
+
+if __name__ == '__main__':
+    import argparse
     
-    process_parquet_files(input_dir_expanded, output_dir_expanded, DATASET_NAME, max_workers=MAX_WORKERS)
+    parser = argparse.ArgumentParser(description='Process Vietnamese TTS datasets')
+    parser.add_argument('--mode', choices=['parquet', 'csv'], required=True, 
+                       help='Dataset format: parquet (VLSP2020) or csv (balanced dataset)')
+    parser.add_argument('--input', required=True, help='Input directory or CSV file path')
+    parser.add_argument('--output', required=True, help='Output directory')
+    parser.add_argument('--audio_dir', help='Audio directory (for CSV mode)')
+    parser.add_argument('--dataset_name', default='vn', help='Dataset name prefix')
+    parser.add_argument('--max_workers', type=int, help='Max worker threads')
+    parser.add_argument('--max_samples_per_speaker', type=int, default=500, 
+                       help='Max samples per speaker (CSV mode)')
+    
+    args = parser.parse_args()
+    
+    if args.mode == 'parquet':
+        # Original VLSP2020 parquet processing
+        input_dir = os.path.expanduser(args.input)
+        output_dir = os.path.expanduser(args.output)
+        process_parquet_files(input_dir, output_dir, args.dataset_name, args.max_workers)
+        
+    elif args.mode == 'csv':
+        # New CSV processing for your balanced dataset
+        if not args.audio_dir:
+            print("Error: --audio_dir is required for CSV mode")
+            exit(1)
+        
+        csv_path = os.path.expanduser(args.input)
+        audio_dir = os.path.expanduser(args.audio_dir)
+        output_dir = os.path.expanduser(args.output)
+        
+        process_csv_dataset(
+            csv_path, audio_dir, output_dir, 
+            args.dataset_name, args.max_samples_per_speaker, args.max_workers
+        )
+    
+    # Example usage:
+    # For your balanced CSV dataset:
+    # python data_preprocess_vn.py --mode csv \
+    #   --input /mnt/tsharp/thucth/voice/balanced_tts_dataset/balanced_metadata_full.csv \
+    #   --audio_dir /mnt/tsharp/thucth/voice/balanced_tts_dataset/wavs/ \
+    #   --output /home/thuc/thuc/voice/train-higgs-audio-vi/vietnamese_training_data_fast \
+    #   --max_workers 16
+    #
+    # For VLSP2020 parquet dataset:
+    # python data_preprocess_vn.py --mode parquet \
+    #   --input /root/datasets/doof-ferb/vlsp2020_vinai_100h/data \
+    #   --output /root/code/higgs-audio-main/higgs_training_data_mini_vn

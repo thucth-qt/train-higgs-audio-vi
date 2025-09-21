@@ -524,6 +524,25 @@ class HiggsAudioModelWrapper(nn.Module):
     @property
     def device(self):
         return self.model.device
+    
+    def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
+        """Enable gradient checkpointing for the underlying model"""
+        if hasattr(self.model, 'gradient_checkpointing_enable'):
+            self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs)
+        elif hasattr(self.model, 'config'):
+            # Fallback: set config attribute
+            self.model.config.use_cache = False
+            if hasattr(self.model.config, 'gradient_checkpointing'):
+                self.model.config.gradient_checkpointing = True
+    
+    def gradient_checkpointing_disable(self):
+        """Disable gradient checkpointing for the underlying model"""
+        if hasattr(self.model, 'gradient_checkpointing_disable'):
+            self.model.gradient_checkpointing_disable()
+        elif hasattr(self.model, 'config'):
+            # Fallback: set config attribute
+            if hasattr(self.model.config, 'gradient_checkpointing'):
+                self.model.config.gradient_checkpointing = False
           
     def forward(self, **kwargs):
         if self.model.device != kwargs['input_ids'].device:
@@ -664,6 +683,12 @@ def main():
     parser.add_argument("--report_to", type=str, default="tensorboard", 
                        choices=["tensorboard", "wandb", "none"])
     
+    # Memory optimization arguments
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--gradient_checkpointing", action="store_true", default=False)
+    parser.add_argument("--dataloader_num_workers", type=int, default=0)
+    parser.add_argument("--max_length", type=int, default=4096)
+    
     # Freeze model components
     parser.add_argument("--freeze_audio_tower", action="store_true", default=False)
     parser.add_argument("--freeze_audio_encoder_proj", action="store_true", default=False)
@@ -732,6 +757,7 @@ def main():
         num_train_epochs=args.num_train_epochs,
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_eval_batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
         warmup_steps=args.warmup_steps,
         logging_steps=args.logging_steps,
@@ -742,7 +768,9 @@ def main():
         load_best_model_at_end=True if eval_dataset else False,
         metric_for_best_model="eval_loss" if eval_dataset else None,
         fp16=args.fp16,
+        gradient_checkpointing=args.gradient_checkpointing,
         dataloader_pin_memory=False,
+        dataloader_num_workers=args.dataloader_num_workers,
         remove_unused_columns=False,
         report_to=args.report_to if args.report_to != "none" else None,
         logging_dir=args.logging_dir,
