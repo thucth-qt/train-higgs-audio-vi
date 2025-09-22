@@ -11,6 +11,10 @@ import argparse
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
+import multiprocessing
+
+# Fix CUDA multiprocessing issue
+multiprocessing.set_start_method('spawn', force=True)
 from transformers import (
     AutoTokenizer, 
     AutoConfig,
@@ -686,7 +690,8 @@ def main():
     # Memory optimization arguments
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--gradient_checkpointing", action="store_true", default=False)
-    parser.add_argument("--dataloader_num_workers", type=int, default=0)
+    parser.add_argument("--dataloader_num_workers", type=int, default=0, 
+                       help="Number of workers for DataLoader. Use 0 for CUDA to avoid multiprocessing issues.")
     parser.add_argument("--max_length", type=int, default=4096)
     
     # Freeze model components
@@ -770,7 +775,7 @@ def main():
         fp16=args.fp16,
         gradient_checkpointing=args.gradient_checkpointing,
         dataloader_pin_memory=False,
-        dataloader_num_workers=args.dataloader_num_workers,
+        dataloader_num_workers=0 if torch.cuda.is_available() else args.dataloader_num_workers,
         remove_unused_columns=False,
         report_to=args.report_to if args.report_to != "none" else None,
         logging_dir=args.logging_dir,

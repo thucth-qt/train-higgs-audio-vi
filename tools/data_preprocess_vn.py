@@ -229,9 +229,10 @@ def process_csv_dataset(csv_path, audio_dir, output_dir, dataset_name="vn", max_
             audio_filename = f"{sample_id}.wav"
             text_filename = f"{sample_id}.txt"
             
-            # Input audio path
-            input_audio_path = row.get('raw_path', os.path.join(audio_dir, row.get('wav_filename', '')))
+            # Input audio path - use audio_dir parameter instead of raw_path from CSV
+            input_audio_path = os.path.join(audio_dir, row.get('wav_filename', ''))
             if not os.path.exists(input_audio_path):
+                print(f"Warning: Audio file not found: {input_audio_path}")
                 return None, None
             
             # Output paths

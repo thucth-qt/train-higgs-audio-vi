@@ -12,7 +12,7 @@ if [ ! -f "trainer/trainer.py" ]; then
 fi
 
 # Check if data directory exists
-DATA_DIR="/home/thuc/thuc/voice/train-higgs-audio-vi/vietnamese_training_data_fast"
+DATA_DIR="/root/data/higgs/train-higgs-audio-vi/vietnamese_training_data"
 if [ ! -d "$DATA_DIR" ]; then
     echo "❌ Error: Training data directory not found: $DATA_DIR"
     echo "Please run the data preprocessing first."
@@ -47,6 +47,7 @@ echo "  Learning rate: 1e-4"
 echo "  Mixed Precision: FP16"
 echo "  Sequence length: 1536 (reduced)"
 echo "  Memory optimizations: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+echo "  DataLoader workers: 0 (CUDA multiprocessing disabled)"
 echo ""
 
 # Ask for confirmation
@@ -89,7 +90,7 @@ python trainer/trainer.py \
     --lora_alpha 8 \
     --lora_dropout 0.1 \
     --fp16 \
-    --dataloader_num_workers 1 \
+    --dataloader_num_workers 0 \
     --max_length 1536 \
     --seed 42 \
     --report_to tensorboard

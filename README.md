@@ -117,11 +117,11 @@ The `data_preprocess_vn.py` script supports both CSV and Parquet formats with mu
 ```bash
 # For CSV-based datasets (like balanced Vietnamese dataset)
 python tools/data_preprocess_vn.py --mode csv \
-  --input /path/to/your/dataset.csv \
-  --audio_dir /path/to/audio/files/ \
+  --input /root/data/higgs/balanced_tts_dataset/balanced_metadata_full.csv \
+  --audio_dir /root/data/higgs/balanced_tts_dataset/wavs/ \
   --output ./vietnamese_training_data \
   --max_workers 16 \
-  --max_samples_per_speaker 500
+  --max_samples_per_speaker 10000
 
 # For Parquet-based datasets (like VLSP2020)
 python tools/data_preprocess_vn.py --mode parquet \
