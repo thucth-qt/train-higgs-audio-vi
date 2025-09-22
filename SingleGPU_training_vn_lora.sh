@@ -8,6 +8,7 @@ set -e
 
 # Set PyTorch CUDA allocation config to reduce fragmentation (recommended for large models)
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export WANDB_DISABLED=true
 # Optionally, reduce CPU contention
 export OMP_NUM_THREADS=1
 
@@ -32,12 +33,12 @@ python3 trainer/trainer.py \
   --model_path /root/data/higgs/weights \
   --audio_tokenizer_path /root/data/higgs/weights \
   --train_data_dir /root/data/higgs/train-higgs-audio-vi/vietnamese_training_data \
-  --output_dir /root/data/higgs/train-higgs-audio-vi/output_vn_lora \
+  --output_dir /root/data/higgs/train-higgs-audio-vi/output_vn_lora_exp2 \
   --per_device_train_batch_size 2 \
   --num_train_epochs 5 \
   $PRECISION_FLAG \
   --use_lora \
   --logging_steps 100 \
-  --save_steps 1000 \
+  --save_steps 5000 \
   --eval_steps 1000 \
-  --report_to none
+  --report_to tensorboard
