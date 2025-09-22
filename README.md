@@ -477,3 +477,92 @@ We report the word-error-rate (WER) and the geometric mean between intra-speaker
 ## Third-Party Licenses
 
 The `boson_multimodal/audio_processing/` directory contains code derived from third-party repositories, primarily from [xcodec](https://github.com/zhenye234/xcodec). Please see the [`LICENSE`](boson_multimodal/audio_processing/LICENSE) in that directory for complete attribution and licensing information.
+
+
+## Dataset and Tokenizer Validation Scripts
+
+This project provides several scripts to validate your dataset and audio tokenizer before training. These help ensure your data and pipeline are correct and ready for training or inference.
+
+### 1. Dataset Integrity Check
+
+**Script:** `tools/check_dataset_integrity.py`
+
+**Purpose:**
+- Checks for missing, empty, or duplicate audio/text files referenced in `metadata.json`.
+
+**Usage:**
+```bash
+python -m tools.check_dataset_integrity --dataset_dir /path/to/your/dataset
+```
+
+**Example Output:**
+```
+Checking samples: 100%|█████████████████████| 44481/44481 [00:01<00:00, 36191.92it/s]
+Total samples: 44481
+Missing audio files: 0
+Missing text files: 0
+Empty/corrupt files: 0
+```
+
+---
+
+### 2. Deep Dataset Validation
+
+**Script:** `tools/validate_dataset.py`
+
+**Purpose:**
+- Loads each audio file and transcript, checks for file existence, readability, and duration.
+- Warns about long or empty files.
+- Prints summary stats.
+
+**Usage:**
+```bash
+python -m tools.validate_dataset --dataset_dir /path/to/your/dataset
+```
+
+**Example Output:**
+```
+Validation Results:
+- Valid samples: 44481
+- Invalid samples: 0
+- Success rate: 100.00%
+- Total duration: 49.51 hours
+- Average duration: 4.01 seconds
+✅ Dataset validation passed!
+```
+
+---
+
+### 3. Audio Tokenizer Validation
+
+**Script:** `tools/test_audio_data.py`
+
+**Purpose:**
+- Loads your audio tokenizer and tests it on a few real audio files.
+- Prints token shapes, types, min/max/sample values, and device info.
+- Ensures the tokenizer is working and device migration is correct.
+
+**Usage:**
+```bash
+python -m tools.test_audio_data
+```
+
+**Example Output:**
+```
+[INFO] Loading HiggsAudioTokenizer from local path: /root/data/higgs/weights
+[INFO] Moving HiggsAudioTokenizer and all submodules to device: cuda
+Found 44481 audio files
+
+--- Testing file 1: hieurotrong5phut-ntkt_000138.wav ---
+Shape: torch.Size([8, 61])
+Dtype: torch.int64
+Min value: 0
+Max value: 203
+Sample values: tensor([[22, 47, 46, 44, 51],
+        [ 0,  0,  0,  0,  0],
+        ...], device='cuda:0')
+```
+
+---
+
+**These scripts are essential for verifying your data and pipeline before starting large-scale training.**

@@ -14,6 +14,8 @@ import torchaudio
 import json
 import librosa
 from huggingface_hub import snapshot_download
+from pathlib import Path
+from transformers import AutoTokenizer
 
 from vector_quantize_pytorch import ResidualFSQ
 from .descriptaudiocodec.dac.model import dac as dac2
@@ -61,6 +63,8 @@ class HiggsAudioTokenizer(nn.Module):
         vq_scale: int = 1,
         semantic_sample_rate: int = None,
         device: str = "cuda",
+        *args,
+        **kwargs
     ):
         super().__init__()
         self.hop_length = np.prod(ratios)
@@ -306,22 +310,32 @@ class HiggsAudioTokenizer(nn.Module):
         o = self.decoder_2(quantized_acoustic)
         return o.cpu().numpy()
 
+    def to(self, device):
+        print(f"[INFO] Moving HiggsAudioTokenizer and all submodules to device: {device}")
+        super().to(device)
+        self.device = device
+        return self
 
-def load_higgs_audio_tokenizer(tokenizer_name_or_path, device="cuda"):
-    is_local = os.path.exists(tokenizer_name_or_path)
-    if not is_local:
-        tokenizer_path = snapshot_download(tokenizer_name_or_path)
+
+def load_higgs_audio_tokenizer(tokenizer_name_or_path, device="cpu"):
+    # Support local directory or HuggingFace repo id
+    if Path(tokenizer_name_or_path).exists():
+        print(f"[INFO] Loading HiggsAudioTokenizer from local path: {tokenizer_name_or_path}")
+        config_path = Path(tokenizer_name_or_path) / "tokenizer_config.json"
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        # Only pass valid args to the constructor
+        import inspect
+        from boson_multimodal.audio_processing.higgs_audio_tokenizer import HiggsAudioTokenizer
+        valid_args = inspect.signature(HiggsAudioTokenizer.__init__).parameters
+        filtered_config = {k: v for k, v in config.items() if k in valid_args}
+        filtered_config["device"] = device
+        tokenizer = HiggsAudioTokenizer(**filtered_config)
+        tokenizer = tokenizer.to(device)
+        # Optionally, load weights if needed (add here if you have a weights file)
+        return tokenizer
     else:
-        tokenizer_path = tokenizer_name_or_path
-    config_path = os.path.join(tokenizer_path, "config.json")
-    model_path = os.path.join(tokenizer_path, "model.pth")
-    config = json.load(open(config_path))
-    model = HiggsAudioTokenizer(
-        **config,
-        device=device,
-    )
-    parameter_dict = torch.load(model_path, map_location=device)
-    model.load_state_dict(parameter_dict, strict=False)
-    model.to(device)
-    model.eval()
-    return model
+        from huggingface_hub import snapshot_download
+        tokenizer_path = snapshot_download(tokenizer_name_or_path)
+        print(f"[INFO] Downloaded HiggsAudioTokenizer from HuggingFace Hub: {tokenizer_path}")
+        return load_higgs_audio_tokenizer(tokenizer_path, device=device)

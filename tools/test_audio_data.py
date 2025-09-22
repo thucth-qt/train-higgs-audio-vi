@@ -9,10 +9,10 @@ def test_audio_tokenizer():
         from boson_multimodal.audio_processing.higgs_audio_tokenizer import load_higgs_audio_tokenizer
         
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        audio_tokenizer = load_higgs_audio_tokenizer("/root/code/higgs-audio-main/model_ckpt_tokenizer", device=device)
+        audio_tokenizer = load_higgs_audio_tokenizer("/root/data/higgs/weights", device=device)
         
-        # 测试几个音频文件
-        data_dir = "/root/code/higgs-audio-main/examples/voice_prompts"
+        # Test a few Vietnamese audio files
+        data_dir = "/root/data/higgs/train-higgs-audio-vi/vietnamese_training_data"
         audio_files = list(Path(data_dir).glob("*.wav")) + list(Path(data_dir).glob("*.mp3"))
         
         print(f"Found {len(audio_files)} audio files")
@@ -22,11 +22,19 @@ def test_audio_tokenizer():
             try:
                 tokens = audio_tokenizer.encode(str(audio_file))
                 if tokens is not None:
-                    print(f"Shape: {tokens.shape}")
-                    print(f"Dtype: {tokens.dtype}")
-                    print(f"Min value: {tokens.min().item()}")
-                    print(f"Max value: {tokens.max().item()}")
-                    print(f"Sample values: {tokens[:, :5] if tokens.shape[1] > 5 else tokens}")
+                    if isinstance(tokens, list):
+                        print(f"Length: {len(tokens)}")
+                        print(f"Type: {type(tokens[0]) if tokens else 'empty'}")
+                        if tokens:
+                            print(f"Min value: {min(tokens)}")
+                            print(f"Max value: {max(tokens)}")
+                            print(f"Sample values: {tokens[:5]}")
+                    else:
+                        print(f"Shape: {tokens.shape}")
+                        print(f"Dtype: {tokens.dtype}")
+                        print(f"Min value: {tokens.min().item()}")
+                        print(f"Max value: {tokens.max().item()}")
+                        print(f"Sample values: {tokens[:, :5] if tokens.shape[1] > 5 else tokens}")
                 else:
                     print("Returned None")
             except Exception as e:
