@@ -498,11 +498,13 @@ class HiggsAudioModelWrapper(nn.Module):
     
     def __init__(self, model_path: str, device: str = 'cuda', args=None):
         super().__init__()
+        # For training, always load model in float32 and let Trainer/AMP handle mixed precision
+        print("[INFO] Loading model in float32 for training. Mixed precision will be handled by Trainer/AMP.")
         if HIGGS_AVAILABLE:
             self.model = HiggsAudioModel.from_pretrained(
                 config=HiggsAudioConfig.from_pretrained(model_path),
                 pretrained_model_name_or_path=model_path,
-                torch_dtype=torch.bfloat16,
+                # No torch_dtype here for training!
                 device_map=device,
             )
             self.config = self.model.config

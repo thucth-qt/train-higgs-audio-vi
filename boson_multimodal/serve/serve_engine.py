@@ -14,6 +14,7 @@ from dataclasses import asdict
 from loguru import logger
 import threading
 import librosa
+import os
 
 
 from ..dataset.chatml_dataset import ChatMLSample, ChatMLDatasetSample, prepare_chatml_sample
@@ -182,7 +183,6 @@ class HiggsAudioServeEngine:
         audio_tokenizer_name_or_path: str,
         tokenizer_name_or_path: Optional[str] = None,
         device: str = "cuda",
-        torch_dtype: Union[torch.dtype, str] = "auto",
         kv_cache_lengths: List[int] = [1024, 4096, 8192],  # Multiple KV cache sizes
     ):
         """
@@ -205,10 +205,18 @@ class HiggsAudioServeEngine:
         """
         self.device = device
         self.model_name_or_path = model_name_or_path
-        self.torch_dtype = torch_dtype
-
-        # Initialize model and tokenizer
-        self.model = HiggsAudioModel.from_pretrained(model_name_or_path, torch_dtype=torch_dtype).to(device)
+        # Select dtype from env
+        user_dtype = os.environ.get("HIGGS_DTYPE", "float32").lower()
+        if user_dtype == "bf16" or user_dtype == "bfloat16":
+            dtype = torch.bfloat16
+            print("[INFO] Using bfloat16 (bf16) precision for model weights.")
+        elif user_dtype == "fp16" or user_dtype == "float16":
+            dtype = torch.float16
+            print("[INFO] Using float16 (fp16) precision for model weights.")
+        else:
+            dtype = torch.float32
+            print("[INFO] Using float32 precision for model weights.")
+        self.model = HiggsAudioModel.from_pretrained(model_name_or_path, torch_dtype=dtype).to(device)
         logger.info(f"Loaded model from {model_name_or_path}, dtype: {self.model.dtype}")
 
         if tokenizer_name_or_path is None:

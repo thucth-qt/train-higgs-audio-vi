@@ -363,11 +363,13 @@ class HiggsAudioModelWrapper(nn.Module):
     """Wrapper for Higgs Audio v2 model to enable training"""
     def __init__(self, model_path: str, device: str = 'cuda:0', args=None):
         super().__init__()
+        # For training, always load model in float32 and let Trainer/AMP handle mixed precision
+        print("[INFO] Loading model in float32 for training. Mixed precision will be handled by Trainer/AMP.")
         if HIGGS_AVAILABLE:
             self.model = HiggsAudioModel.from_pretrained(
                 config=HiggsAudioConfig.from_pretrained(model_path),
                 pretrained_model_name_or_path=model_path,
-                torch_dtype=torch.bfloat16,
+                # No torch_dtype here for training!
                 device_map={'': device},
             )
             self.config = self.model.config
@@ -375,14 +377,12 @@ class HiggsAudioModelWrapper(nn.Module):
             from transformers import AutoModel
             self.model = AutoModel.from_pretrained(model_path, trust_remote_code=True)
             self.config = self.model.config
-        
         self.model = self.model.to(device)
-        
         if args:
             if args.freeze_audio_tower: self.model.freeze_audio_tower()
             if args.freeze_audio_encoder_proj: self.model.freeze_audio_encoder_proj()
             if args.freeze_llm: self.model.freeze_llm()
-
+          
     @property
     def device(self):
         return self.model.device

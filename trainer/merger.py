@@ -61,11 +61,23 @@ class HiggsAudioLoRaMerger:
                 self.base_model_path,
                 trust_remote_code=True
             )
+            # Before model loading
+            user_dtype = os.environ.get("HIGGS_DTYPE", "float32").lower()
+            if user_dtype == "bf16" or user_dtype == "bfloat16":
+                dtype = torch.bfloat16
+                print("[INFO] Using bfloat16 (bf16) precision for model weights.")
+            elif user_dtype == "fp16" or user_dtype == "float16":
+                dtype = torch.float16
+                print("[INFO] Using float16 (fp16) precision for model weights.")
+            else:
+                dtype = torch.float32
+                print("[INFO] Using float32 precision for model weights.")
+
             self.base_model = HiggsAudioModel.from_pretrained(
                 self.base_model_path,
                 config=config,
                 trust_remote_code=True,
-                torch_dtype=torch.bfloat16,
+                torch_dtype=dtype,
                 device_map="auto"
             )
         else:

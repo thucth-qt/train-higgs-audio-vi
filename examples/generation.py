@@ -194,10 +194,21 @@ class HiggsAudioModelClient:
             if isinstance(audio_tokenizer, str)
             else audio_tokenizer
         )
+        # Select dtype from env
+        user_dtype = os.environ.get("HIGGS_DTYPE", "float32").lower()
+        if user_dtype == "bf16" or user_dtype == "bfloat16":
+            dtype = torch.bfloat16
+            print("[INFO] Using bfloat16 (bf16) precision for model weights.")
+        elif user_dtype == "fp16" or user_dtype == "float16":
+            dtype = torch.float16
+            print("[INFO] Using float16 (fp16) precision for model weights.")
+        else:
+            dtype = torch.float32
+            print("[INFO] Using float32 precision for model weights.")
         self._model = HiggsAudioModel.from_pretrained(
             model_path,
             device_map=self._device,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=dtype,
         )
         self._model.eval()
         self._kv_cache_lengths = kv_cache_lengths
