@@ -498,13 +498,15 @@ def prepare_generation_context(scene_prompt, ref_audio, ref_audio_in_system_mess
 @click.option(
     "--model_path",
     type=str,
-    default="bosonai/higgs-audio-v2-generation-3B-base",
+    # default="/root/data/higgs/train-higgs-audio-vi/merged_models/vietnamese_lora_merged",
+    # default="/root/data/higgs/train-higgs-audio-vi/merged_models/vietnamese_lora_merged",
+    default="/root/data/higgs/weights/higgs-audio-v2-generation-3B-base-vn",
     help="Output wav file path.",
 )
 @click.option(
     "--audio_tokenizer",
     type=str,
-    default="bosonai/higgs-audio-v2-tokenizer",
+    default="/root/data/higgs/weights/higgs-audio-v2-tokenizer",
     help="Audio tokenizer path, if not set, use the default one.",
 )
 @click.option(
