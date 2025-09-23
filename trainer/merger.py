@@ -14,6 +14,7 @@ from peft import PeftModel, PeftConfig
 import json
 import datetime
 import shutil 
+from safetensors.torch import load_file, save_file
 
 try:
     from boson_multimodal.model.higgs_audio import HiggsAudioConfig, HiggsAudioModel
@@ -87,21 +88,73 @@ class HiggsAudioLoRaMerger:
         logger.info("Base model loaded successfully")
         return self.base_model
         
+    def _ensure_lora_dtype(self, target_dtype):
+        """
+        Ensure LoRA adapter weights are in the same dtype as the base model.
+        If not, convert and use a temporary file in /tmp.
+        """
+        import os
+        import tempfile
+        lora_file = os.path.join(self.lora_adapter_path, "adapter_model.safetensors")
+        tensors = load_file(lora_file)
+        needs_conversion = any(t.dtype != target_dtype for t in tensors.values())
+        if needs_conversion:
+            logger.info(f"Converting LoRA weights to {target_dtype} for merging...")
+            converted = {k: v.to(target_dtype) for k, v in tensors.items()}
+            tmp_dir = tempfile.mkdtemp(prefix="lora_adapter_dtype_")
+            out_file = os.path.join(tmp_dir, f"adapter_model_{str(target_dtype).replace('torch.', '')}.safetensors")
+            save_file(converted, out_file)
+            logger.info(f"Converted LoRA weights saved to temporary file: {out_file}")
+            return out_file
+        else:
+            logger.info("LoRA weights already match base model dtype.")
+            return lora_file
+        
     def load_lora_model(self):
         """Load model with LoRA adapters"""
         logger.info(f"Loading LoRA adapters from {self.lora_adapter_path}")
-        
         # Load LoRA config
         peft_config = PeftConfig.from_pretrained(self.lora_adapter_path)
         logger.info(f"LoRA config: {peft_config}")
-        
+        # Ensure LoRA weights match base model dtype
+        target_dtype = self.base_model.dtype
+        lora_weights_file = self._ensure_lora_dtype(target_dtype)
+        import shutil
+        import tempfile
+        import os
         # Load model with LoRA adapters
-        self.lora_model = PeftModel.from_pretrained(
-            self.base_model,
-            self.lora_adapter_path,
-            config=peft_config
-        )
-        
+        # If PeftModel supports adapter_weights argument, use it; otherwise, copy to /tmp and load from there
+        try:
+            self.lora_model = PeftModel.from_pretrained(
+                self.base_model,
+                self.lora_adapter_path,
+                config=peft_config,
+                adapter_weights=lora_weights_file  # Only works if supported by your PEFT version
+            )
+        except TypeError:
+            # Fallback: copy the correct safetensors file to a /tmp directory and load from there
+            if lora_weights_file.endswith('.safetensors'):
+                tmp_dir = tempfile.mkdtemp(prefix="lora_adapter_")
+                tmp_lora_dir = os.path.join(tmp_dir, "lora_adapters")
+                os.makedirs(tmp_lora_dir, exist_ok=True)
+                # Copy all files from lora_adapter_path to tmp_lora_dir
+                for fname in os.listdir(self.lora_adapter_path):
+                    src = os.path.join(self.lora_adapter_path, fname)
+                    dst = os.path.join(tmp_lora_dir, fname)
+                    if os.path.isfile(src):
+                        shutil.copy2(src, dst)
+                # Overwrite the safetensors file with the correct dtype
+                safetensors_name = os.path.basename(lora_weights_file)
+                dst_safetensors = os.path.join(tmp_lora_dir, "adapter_model.safetensors")
+                shutil.copy2(lora_weights_file, dst_safetensors)
+                logger.info(f"Loading LoRA model from temporary directory: {tmp_lora_dir}")
+                self.lora_model = PeftModel.from_pretrained(
+                    self.base_model,
+                    tmp_lora_dir,
+                    config=peft_config
+                )
+            else:
+                raise RuntimeError("Could not find a valid LoRA safetensors file for fallback loading.")
         logger.info("LoRA model loaded successfully")
         return self.lora_model
         

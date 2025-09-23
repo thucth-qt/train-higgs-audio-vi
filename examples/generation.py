@@ -326,6 +326,8 @@ class HiggsAudioModelClient:
             for k, v in batch.items():
                 if isinstance(v, torch.Tensor):
                     batch[k] = v.contiguous().to(self._device)
+            if 'attention_mask' in batch and batch['attention_mask'].dtype not in [torch.float32, torch.bool]:
+                batch['attention_mask'] = batch['attention_mask'].bool()
 
             if self._use_static_kv_cache:
                 self._prepare_kv_caches()
@@ -489,13 +491,13 @@ def prepare_generation_context(scene_prompt, ref_audio, ref_audio_in_system_mess
 @click.option(
     "--model_path",
     type=str,
-    default="/root/code/higgs-audio-main/model_ckpt",
+    default="bosonai/higgs-audio-v2-generation-3B-base",
     help="Output wav file path.",
 )
 @click.option(
     "--audio_tokenizer",
     type=str,
-    default="/root/code/higgs-audio-main/model_ckpt_tokenizer",
+    default="bosonai/higgs-audio-v2-tokenizer",
     help="Audio tokenizer path, if not set, use the default one.",
 )
 @click.option(

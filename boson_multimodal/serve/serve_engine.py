@@ -283,7 +283,7 @@ class HiggsAudioServeEngine:
             self.model.capture_model(self.kv_caches.values())
 
     def _prepare_inputs(self, chat_ml_sample: ChatMLSample, force_audio_gen: bool = False):
-        input_tokens, _, audio_contents, _ = prepare_chatml_sample(
+        input_tokens, _, audio_contents, _, _ = prepare_chatml_sample(
             chat_ml_sample,
             self.tokenizer,
         )

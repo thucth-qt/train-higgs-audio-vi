@@ -1,23 +1,24 @@
 #!/bin/bash
+export 
+export HIGGS_DTYPE="bfloat16"
+# Set the Python script name
+PYTHON_SCRIPT="trainer/merger.py" # Make sure this path points to your Python script
 
-# 设置脚本名称
-PYTHON_SCRIPT="trainer/merger.py" # 确保这里的路径正确指向你的 Python 脚本
-
-# 检查Python脚本是否存在
+# Check if the Python script exists
 if [ ! -f "$PYTHON_SCRIPT" ]; then
-    echo "错误：找不到 Python 脚本 '$PYTHON_SCRIPT'。请确保它在当前目录下或更新脚本路径。"
+    echo "Error: Python script not found at '$PYTHON_SCRIPT'. Please ensure it's in the correct directory or update the script path."
     exit 1
 fi
 
-# 默认参数
-BASE_MODEL_PATH=""
-LORA_ADAPTER_PATH=""
-OUTPUT_PATH=""
+# Default parameters for the Vietnamese pipeline
+BASE_MODEL_PATH="/root/data/higgs/weights/higgs-audio-v2-generation-3B-base"
+LORA_ADAPTER_PATH="/root/data/higgs/train-higgs-audio-vi/runs/2_output_vn_lora_mini/lora_adapters"
+OUTPUT_PATH="/root/data/higgs/train-higgs-audio-vi/runs/2_output_vn_lora_mini_merged"
 COMPARE_MODELS_FLAG=""
 TEST_INPUT_VALUE=""
-SAVE_TOKENIZER_CMD="" # 默认不传递任何关于保存 tokenizer 的参数
+SAVE_TOKENIZER_FLAG="" # Default is to save the tokenizer
 
-# 解析命令行参数
+# Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --base_model_path)
@@ -36,69 +37,69 @@ while [[ "$#" -gt 0 ]]; do
             COMPARE_MODELS_FLAG="--compare_models"
             ;;
         --test_input)
-            TEST_INPUT_VALUE="--test_input \"$2\"" # 确保字符串中的空格被正确处理
+            TEST_INPUT_VALUE="--test_input \"$2\"" # Ensure spaces in the string are handled correctly
             shift
             ;;
-        --no_save_tokenizer) # 如果用户指定不保存 tokenizer
-            SAVE_TOKENIZER_CMD="--no_save_tokenizer" # 则将这个标志传递给 Python 脚本
+        --no_save_tokenizer) # If the user specifies not to save the tokenizer
+            SAVE_TOKENIZER_FLAG="--no_save_tokenizer" # pass this flag to the Python script
             ;;
         *)
-            echo "未知参数：$1"
+            echo "Unknown parameter: $1"
             exit 1
             ;;
     esac
     shift
 done
 
-# 检查必需参数
+# Check required parameters
 if [ -z "$BASE_MODEL_PATH" ]; then
-    echo "错误：必须指定 --base_model_path。"
-    echo "用法：./merge_model.sh --base_model_path <你的基础模型路径> --lora_adapter_path <你的LoRA路径> --output_path <你的输出路径> [可选参数]"
+    echo "Error: --base_model_path must be specified."
+    echo "Usage: ./merge_model.sh --base_model_path <path_to_base_model> --lora_adapter_path <path_to_lora> --output_path <path_to_output> [optional_args]"
     exit 1
 fi
 
 if [ -z "$LORA_ADAPTER_PATH" ]; then
-    echo "错误：必须指定 --lora_adapter_path。"
-    echo "用法：./merge_model.sh --base_model_path <你的基础模型路径> --lora_adapter_path <你的LoRA路径> --output_path <你的输出路径> [可选参数]"
+    echo "Error: --lora_adapter_path must be specified."
+    echo "Usage: ./merge_model.sh --base_model_path <path_to_base_model> --lora_adapter_path <path_to_lora> --output_path <path_to_output> [optional_args]"
     exit 1
 fi
 
 if [ -z "$OUTPUT_PATH" ]; then
-    echo "错误：必须指定 --output_path。"
-    echo "用法：./merge_model.sh --base_model_path <你的基础模型路径> --lora_adapter_path <你的LoRA路径> --output_path <你的输出路径> [可选参数]"
+    echo "Error: --output_path must be specified."
+    echo "Usage: ./merge_model.sh --base_model_path <path_to_base_model> --lora_adapter_path <path_to_lora> --output_path <path_to_output> [optional_args]"
     exit 1
 fi
 
-# 打印将要执行的命令
-echo "正在执行 LoRA 模型合并..."
-echo "基础模型路径: $BASE_MODEL_PATH"
-echo "LoRA 适配器路径: $LORA_ADAPTER_PATH"
-echo "输出路径: $OUTPUT_PATH"
-[ -n "$COMPARE_MODELS_FLAG" ] && echo "将进行模型比较"
-[ -n "$TEST_INPUT_VALUE" ] && echo "测试输入: $(echo $TEST_INPUT_VALUE | cut -d\" -f2)"
-if [ -z "$SAVE_TOKENIZER_CMD" ]; then # 如果 SAVE_TOKENIZER_CMD 为空，表示默认保存
-    echo "将保存 tokenizer (默认行为)"
+# Print the command to be executed
+echo "Executing LoRA model merge..."
+echo "Base model path: $BASE_MODEL_PATH"
+echo "LoRA adapter path: $LORA_ADAPTER_PATH"
+echo "Output path: $OUTPUT_PATH"
+[ -n "$COMPARE_MODELS_FLAG" ] && echo "Will perform model comparison"
+[ -n "$TEST_INPUT_VALUE" ] && echo "Test input: $(echo $TEST_INPUT_VALUE | cut -d\" -f2)"
+if [ -z "$SAVE_TOKENIZER_FLAG" ]; then # If SAVE_TOKENIZER_FLAG is empty, it means save by default
+    echo "Will save tokenizer (default behavior)"
 else
-    echo "不保存 tokenizer ($SAVE_TOKENIZER_CMD)"
+    echo "Will not save tokenizer ($SAVE_TOKENIZER_FLAG)"
 fi
 
 
-# 构建并执行 Python 命令
+# Build and execute the Python command
 CMD="python3 $PYTHON_SCRIPT \
     --base_model_path \"$BASE_MODEL_PATH\" \
     --lora_adapter_path \"$LORA_ADAPTER_PATH\" \
     --output_path \"$OUTPUT_PATH\" \
     $COMPARE_MODELS_FLAG \
     $TEST_INPUT_VALUE \
-    $SAVE_TOKENIZER_CMD" # 直接传递 SAVE_TOKENIZER_CMD，它要么是 "--no_save_tokenizer" 要么是空字符串
+    $SAVE_TOKENIZER_FLAG" # Directly pass SAVE_TOKENIZER_FLAG, which is either "--no_save_tokenizer" or an empty string
 
-echo "命令: $CMD"
+echo "Command: $CMD"
 eval $CMD
 
-# 检查命令执行结果
+# Check command execution result
 if [ $? -eq 0 ]; then
-    echo "LoRA 合并过程成功完成！"
+    echo "LoRA merge process completed successfully!"
 else
-    echo "LoRA 合并过程失败，请检查错误信息。"
+    echo "LoRA merge process failed, please check the error messages."
     exit 1
 fi

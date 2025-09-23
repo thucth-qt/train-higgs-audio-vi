@@ -30,15 +30,15 @@ fi
 
 # Run the training script
 python3 trainer/trainer.py \
-  --model_path /root/data/higgs/weights \
-  --audio_tokenizer_path /root/data/higgs/weights \
-  --train_data_dir /root/data/higgs/train-higgs-audio-vi/vietnamese_training_data \
-  --output_dir /root/data/higgs/train-higgs-audio-vi/output_vn_lora_exp2 \
-  --per_device_train_batch_size 2 \
-  --num_train_epochs 5 \
+  --model_path /root/data/higgs/weights/higgs-audio-v2-generation-3B-base \
+  --audio_tokenizer_path /root/data/higgs/weights/higgs-audio-v2-tokenizer \
+  --train_data_dir /root/data/higgs/balanced_tts_dataset_higgs_mini \
+  --output_dir /root/data/higgs/train-higgs-audio-vi/runs/2_output_vn_lora_mini \
+  --per_device_train_batch_size 3 \
+  --num_train_epochs 1 \
   $PRECISION_FLAG \
   --use_lora \
   --logging_steps 100 \
-  --save_steps 5000 \
-  --eval_steps 1000 \
+  --save_steps 100 \
+  --eval_steps 100 \
   --report_to tensorboard
