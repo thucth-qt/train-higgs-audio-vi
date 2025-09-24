@@ -12,8 +12,6 @@ from enum import Enum
 from safetensors.torch import load_file
 from typing import Optional, Tuple, Union, List, Dict, Any
 
-import torch.nn.functional as F
-
 from transformers import AutoTokenizer
 from transformers.modeling_outputs import BaseModelOutput
 from transformers.models.whisper.modeling_whisper import WhisperEncoderLayer
@@ -1141,115 +1139,6 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
 
         return hidden_states, all_hidden_states, all_self_attns
 
-    def compute_losses(self, logits, audio_logits, labels, label_audio_ids, audio_out_mask):
-        """
-        计算文本和音频的loss (V2 - 修正版)
-        
-        Args:
-            logits: 文本logits, shape [batch_size, seq_len, vocab_size]
-            audio_logits: 音频logits, shape [num_audio_tokens, num_codebooks, codebook_size] 
-            labels: 文本标签, shape [batch_size, seq_len]
-            label_audio_ids: 音频标签, shape [num_codebooks, num_audio_tokens_in_batch]
-            audio_out_mask: 音频输出mask, shape [batch_size, seq_len]
-        
-        Returns:
-            loss: 总loss
-            llm_loss: 文本loss
-            audio_loss: 音频loss
-        """
-        device = logits.device if logits is not None else (audio_logits.device if audio_logits is not None else 'cpu')
-        
-        # --- 初始化loss值为 requires_grad=True 的张量，确保即使某个loss为0也能参与计算图 ---
-        llm_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-        audio_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-
-        # 1. 计算文本loss (LLM loss) 
-        if labels is not None and logits is not None and logits.numel() > 0 and labels.numel() > 0:
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            
-            flat_logits = shift_logits.view(-1, shift_logits.size(-1))
-            flat_labels = shift_labels.view(-1)
-            
-            # 只计算非-100位置的loss (HuggingFace标准做法)
-            valid_mask = flat_labels != -100
-            if valid_mask.sum() > 0:
-                llm_loss = F.cross_entropy(
-                    flat_logits[valid_mask], 
-                    flat_labels[valid_mask], 
-                    reduction='mean'
-                )
-
-        # 2. 计算音频loss (Audio loss) - *** 这是关键的修正部分 ***
-        if (audio_logits is not None and 
-            label_audio_ids is not None and 
-            audio_logits.numel() > 0 and 
-            label_audio_ids.numel() > 0):
-
-            # --- 断言：检查进入loss计算前，logits和labels的序列长度是否一致 ---
-            # audio_logits 的第一维是序列长度，即整个batch中audio token的总数
-            num_audio_tokens_from_logits = audio_logits.shape[0]
-            # label_audio_ids 的第二维是序列长度
-            num_audio_tokens_from_labels = label_audio_ids.shape[1]
-
-            # 这个断言至关重要，如果它失败，说明数据整理(collator)或模型forward逻辑有问题
-            assert num_audio_tokens_from_logits == num_audio_tokens_from_labels, (
-                f"音频Logits和Labels的序列长度不匹配! "
-                f"Logits长度: {num_audio_tokens_from_logits}, "
-                f"Labels长度: {num_audio_tokens_from_labels}. "
-                "请检查数据整理(Collator)和HiggsAudioDataset的实现。"
-            )
-
-            # --- 核心修正：正确的自回归错位学习 ---
-            # 目标：用第t个token的预测(logits)去和第t+1个token的真值(label)做比较
-            # 因此，我们需要对齐 audio_logits 和 label_audio_ids，并都去掉序列中的一个元素
-
-            # 使用 0 到 n-1 时刻的 audio_logits
-            shifted_logits = audio_logits[:-1, :, :].contiguous()
-            # 使用 1 到 n 时刻的 label_audio_ids
-            shifted_labels = label_audio_ids[:, 1:].contiguous()
-
-            # 再次断言，确保错位后的长度仍然一致
-            assert shifted_logits.shape[0] == shifted_labels.shape[1], (
-                "错位后的音频Logits和Labels长度不匹配!"
-            )
-            
-            # 如果序列长度大于1，才有可能计算loss
-            if shifted_logits.shape[0] > 0:
-                num_codebooks = min(shifted_logits.shape[1], shifted_labels.shape[0])
-                audio_losses = []
-
-                for cb in range(num_codebooks):
-                    # cb_logits shape: [seq_len-1, codebook_size]
-                    cb_logits = shifted_logits[:, cb, :]
-                    # cb_labels shape: [seq_len-1]
-                    cb_labels = shifted_labels[cb, :]
-                    
-                    # 同样，只对非-100的标签计算loss
-                    valid_mask = cb_labels != -100
-                    if valid_mask.sum() > 0:
-                        cb_loss = F.cross_entropy(
-                            cb_logits[valid_mask], 
-                            cb_labels[valid_mask], 
-                            reduction='mean'
-                        )
-                        audio_losses.append(cb_loss)
-                
-                if audio_losses:
-                    # 对所有codebook的loss求平均
-                    audio_loss = torch.stack(audio_losses).mean()
-
-        # --- 合并总Loss ---
-        # 只有当loss大于0时才相加，避免不必要的计算
-        total_loss = torch.tensor(0.0, device=device, dtype=torch.float32, requires_grad=True)
-        if llm_loss.item() > 0:
-            total_loss = total_loss + llm_loss
-        if audio_loss.item() > 0:
-            total_loss = total_loss + audio_loss
-            
-        return total_loss, llm_loss, audio_loss
-
-
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -1274,7 +1163,6 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
         cache_audio_discrete_codes_mask: Optional[torch.LongTensor] = None,
         past_key_values_buckets: Optional[OrderedDict[int, Cache]] = None,
         reward: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
     ):
         """Forward pass for the Higgs-Audio model.
 
@@ -1325,7 +1213,7 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
                 The buckets of past key values.
         """
         target_device = input_ids.device
-        label_audio_ids_save = label_audio_ids
+
         # not used
         del inputs_embeds
 
@@ -1506,26 +1394,7 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
 
         next_cache = past_key_values if use_cache else None
 
-        # #计算loss和llm_loss
-        # print("shape of label_ids", label_ids.shape)
-        # print("shape of label_audio_ids", label_audio_ids.shape)
-        # print("shape of logits", logits.shape)
-        # print("shape of audio_logits", audio_logits.shape)
-        # label_ids
-        # label_audio_ids
-        # logits
-        # audio_logits
-        # label_audio_ids = labels[audio_out_mask]
-        # loss = None
-        # llm_loss = None
-
-        loss, llm_loss, audio_loss = self.compute_losses(
-            logits, audio_logits, labels, label_audio_ids, audio_out_mask
-        )
-
         ret = HiggsAudioModelOutputWithPast(
-            loss=loss,
-            llm_loss=llm_loss,
             logits=logits,
             audio_logits=audio_logits,
             expanded_input_ids=input_ids,
@@ -1539,21 +1408,6 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
             audio_hidden_states=audio_hidden_states,
             attentions=all_self_attns,
         )
-
-        # ret = HiggsAudioModelOutputWithPast(
-        #     logits=logits,
-        #     audio_logits=audio_logits,
-        #     expanded_input_ids=input_ids,
-        #     expanded_labels=labels,
-        #     audio_in_mask=audio_in_mask,
-        #     audio_in_discrete_codes_mask=audio_in_discrete_codes_mask,
-        #     audio_out_mask=audio_out_mask,
-        #     attention_mask=attention_mask,
-        #     past_key_values=next_cache,
-        #     hidden_states=all_hidden_states,
-        #     audio_hidden_states=audio_hidden_states,
-        #     attentions=all_self_attns,
-        # )
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         if not return_dict:
@@ -1976,7 +1830,7 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
                 audio_sequences[-1] = torch.cat([audio_sequences[-1], next_audio_tokens[:, None]], dim=-1)
 
                 if streamer is not None:
-                    streamer.put(next_audio_tokens.cuda())
+                    streamer.put(next_audio_tokens.cpu())
             else:
                 # In text generation mode, we sample the text tokens from text logits.
                 # It might also generate the audio placeholder token to start the audio generation.
@@ -1991,14 +1845,14 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
                 )
 
                 if streamer is not None:
-                    streamer.put(next_tokens.cuda())
+                    streamer.put(next_tokens.cpu())
 
                 if next_audio_tokens is not None:
                     # If the token is audio bos token, we will generate the audio placeholder token
                     # and the corrensponding audio stream bos token to start the audio generation.
                     audio_sequences.append(next_audio_tokens[:, None])
                     if streamer is not None:
-                        streamer.put(next_audio_tokens.cuda())
+                        streamer.put(next_audio_tokens.cpu())
                     if model_kwargs["audio_out_ids"] is None or model_kwargs["audio_out_ids"].shape[0] == 0:
                         # Initialize audio_out_ids
                         model_kwargs["audio_out_ids"] = next_audio_tokens[:, None]
@@ -2335,7 +2189,7 @@ class HiggsAudioModel(HiggsAudioPreTrainedModel, GenerationMixin):
             checkpoint_dir,
             *model_args,
             torch_dtype=torch.bfloat16,
-            device_map="cuda",
+            device_map="cpu",
             **{**kwargs, "state_dict": None},  # Prevent auto-loading state_dict
         )
 

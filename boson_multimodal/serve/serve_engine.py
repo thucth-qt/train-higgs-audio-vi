@@ -14,7 +14,6 @@ from dataclasses import asdict
 from loguru import logger
 import threading
 import librosa
-import os
 
 
 from ..dataset.chatml_dataset import ChatMLSample, ChatMLDatasetSample, prepare_chatml_sample
@@ -108,7 +107,8 @@ class AsyncHiggsAudioStreamer(BaseStreamer):
             # This is likely audio tokens (shape: [audio_num_codebooks])
             assert value.shape[0] == self.audio_num_codebooks, "Number of codebooks mismatch"
             delta = HiggsAudioStreamerDelta(audio_tokens=value)
-            self.loop.call_soon_threadsafe(self.queue.put_nowait, delta)
+            if self.loop.is_running():
+                self.loop.call_soon_threadsafe(self.queue.put_nowait, delta)
             return
 
         # Skip prompt tokens if configured
@@ -122,12 +122,14 @@ class AsyncHiggsAudioStreamer(BaseStreamer):
 
         text = self.tokenizer.decode(value, **self.decode_kwargs)
         delta = HiggsAudioStreamerDelta(text=text, text_tokens=value)
-        self.loop.call_soon_threadsafe(self.queue.put_nowait, delta)
+        if self.loop.is_running():
+            self.loop.call_soon_threadsafe(self.queue.put_nowait, delta)
 
     def end(self):
         """Flushes any remaining text tokens and signals the end of generation."""
         self.next_tokens_are_prompt = True
-        self.loop.call_soon_threadsafe(self.queue.put_nowait, self.stop_signal)
+        if self.loop.is_running():
+            self.loop.call_soon_threadsafe(self.queue.put_nowait, self.stop_signal)
 
     def __aiter__(self):
         return self
@@ -183,6 +185,7 @@ class HiggsAudioServeEngine:
         audio_tokenizer_name_or_path: str,
         tokenizer_name_or_path: Optional[str] = None,
         device: str = "cuda",
+        torch_dtype: Union[torch.dtype, str] = "auto",
         kv_cache_lengths: List[int] = [1024, 4096, 8192],  # Multiple KV cache sizes
     ):
         """
@@ -205,18 +208,10 @@ class HiggsAudioServeEngine:
         """
         self.device = device
         self.model_name_or_path = model_name_or_path
-        # Select dtype from env
-        user_dtype = os.environ.get("HIGGS_DTYPE", "float32").lower()
-        if user_dtype == "bf16" or user_dtype == "bfloat16":
-            dtype = torch.bfloat16
-            print("[INFO] Using bfloat16 (bf16) precision for model weights.")
-        elif user_dtype == "fp16" or user_dtype == "float16":
-            dtype = torch.float16
-            print("[INFO] Using float16 (fp16) precision for model weights.")
-        else:
-            dtype = torch.float32
-            print("[INFO] Using float32 precision for model weights.")
-        self.model = HiggsAudioModel.from_pretrained(model_name_or_path, torch_dtype=dtype).to(device)
+        self.torch_dtype = torch_dtype
+
+        # Initialize model and tokenizer
+        self.model = HiggsAudioModel.from_pretrained(model_name_or_path, torch_dtype=torch_dtype).to(device)
         logger.info(f"Loaded model from {model_name_or_path}, dtype: {self.model.dtype}")
 
         if tokenizer_name_or_path is None:
@@ -283,7 +278,7 @@ class HiggsAudioServeEngine:
             self.model.capture_model(self.kv_caches.values())
 
     def _prepare_inputs(self, chat_ml_sample: ChatMLSample, force_audio_gen: bool = False):
-        input_tokens, _, audio_contents, _, _ = prepare_chatml_sample(
+        input_tokens, _, audio_contents, _ = prepare_chatml_sample(
             chat_ml_sample,
             self.tokenizer,
         )
@@ -429,3 +424,68 @@ class HiggsAudioServeEngine:
                     "cached_tokens": 0,
                 },
             )
+
+    async def generate_delta_stream(
+        self,
+        chat_ml_sample: ChatMLSample,
+        max_new_tokens: int,
+        temperature: float = 0.7,
+        top_k: Optional[int] = None,
+        top_p: float = 0.95,
+        stop_strings: Optional[List[str]] = None,
+        force_audio_gen: bool = False,
+        ras_win_len: Optional[int] = 7,
+        ras_win_max_num_repeat: int = 2,
+        seed: Optional[int] = None,
+    ):
+        """
+        Generate audio from a chatml sample.
+        Args:
+            chat_ml_sample: A chatml sample.
+            max_new_tokens: The maximum number of new tokens to generate.
+            temperature: The temperature to use for the generation.
+            top_p: The top p to use for the generation.
+            stop_strings: A list of strings to stop the generation.
+            force_audio_gen: Whether to force audio generation. This ensures the model generates audio tokens rather than text tokens.
+            ras_win_len: The length of the RAS window. We use 7 by default. You can disable it by setting it to None or <=0.
+            ras_win_max_num_repeat: The maximum number of times to repeat the RAS window.
+        Returns:
+             Delta AsyncGenerator
+        """
+        # Default stop strings
+        if stop_strings is None:
+            stop_strings = ["<|end_of_text|>", "<|eot_id|>"]
+        if ras_win_len is not None and ras_win_len <= 0:
+            ras_win_len = None
+
+        with torch.no_grad():
+            inputs = self._prepare_inputs(chat_ml_sample, force_audio_gen=force_audio_gen)
+
+            self._prepare_kv_caches()
+
+            streamer = AsyncHiggsAudioStreamer(
+                self.tokenizer,
+                audio_num_codebooks=self.model.config.audio_num_codebooks,
+                skip_prompt=True,
+            )
+            generation_kwargs = dict(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                use_cache=True,
+                stop_strings=stop_strings,
+                tokenizer=self.tokenizer,
+                do_sample=False if temperature == 0.0 else True,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                past_key_values_buckets=self.kv_caches,
+                ras_win_len=ras_win_len,
+                ras_win_max_num_repeat=ras_win_max_num_repeat,
+                seed=seed,
+                streamer=streamer,
+            )
+            thread = threading.Thread(target=self.model.generate, kwargs=generation_kwargs)
+            thread.start()
+
+            async for delta in streamer:
+                yield delta
