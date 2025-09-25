@@ -80,8 +80,8 @@ python3 trainer/trainer.py \
   --ref_audio_in_system_message \
   --output_dir "$OUTPUT_DIR" \
   --num_train_epochs 20 \
-  --per_device_train_batch_size 1 \
-  --per_device_eval_batch_size 1 \
+  --per_device_train_batch_size 2 \
+  --per_device_eval_batch_size 2 \
   --gradient_accumulation_steps 6 \
   --learning_rate 2e-5 \
   --warmup_steps 500 \

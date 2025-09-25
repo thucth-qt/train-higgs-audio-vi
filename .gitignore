@@ -1,3 +1,7 @@
+/wandb
+**/*.log
+/logs
+/runs
 .venv/
 .history/
 # Temporary files generated in training

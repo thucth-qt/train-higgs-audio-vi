@@ -1,0 +1,32 @@
+{
+  "dataset_info": {
+    "total_samples": 1,
+    "speakers": [
+      "huo_speaker"
+    ],
+    "languages": [
+      "zh"
+    ],
+    "task_type": "zero_shot_voice_cloning",
+    "reference_audio_ratio": 0.2,
+    "created_from": "higgs_training_data_mini"
+  },
+  "samples": [
+    {
+      "id": "huo_speaker_000001",
+      "audio_file": "huo_speaker_000001.wav",
+      "transcript_file": "huo_speaker_000001.txt",
+      "duration": 3.2,
+      "speaker_id": "huo_speaker",
+      "speaker_name": "Huo",
+      "scene": "quiet_room",
+      "emotion": "questioning",
+      "language": "zh",
+      "gender": "unknown",
+      "quality_score": 1.0,
+      "ref_audio_file": "huo_speaker_000000.wav",
+      "ref_transcript": "请按1键重新录音，录音超时。",
+      "task_type": "zero_shot_voice_cloning"
+    }
+  ]
+}

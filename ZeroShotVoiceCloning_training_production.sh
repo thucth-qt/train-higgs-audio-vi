@@ -24,7 +24,11 @@ fi
 # Activate the virtual environment
 source /root/data/higgs/train-higgs-audio-vi/.venv/bin/activate
 
-# 🎯 Production precision selection with auto-detection
+# 🚀 Production Memory Optimization Settings
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export CUDA_LAUNCH_BLOCKING=0
+
+# Set precision based on argument or auto-detect
 PRECISION=${1:-auto}
 if [[ "$PRECISION" == "auto" ]]; then
     if python3 -c "import torch; exit(0 if torch.cuda.is_bf16_supported() else 1)" 2>/dev/null; then
@@ -102,9 +106,9 @@ python3 trainer/trainer.py \
   --ref_audio_in_system_message \
   --output_dir "$OUTPUT_DIR" \
   --num_train_epochs 20 \
-  --per_device_train_batch_size 3 \
-  --per_device_eval_batch_size 2 \
-  --gradient_accumulation_steps 2 \
+  --per_device_train_batch_size 1 \
+  --per_device_eval_batch_size 1 \
+  --gradient_accumulation_steps 6 \
   --learning_rate 2e-5 \
   --warmup_steps 500 \
   --lr_scheduler_type cosine_with_restarts \
