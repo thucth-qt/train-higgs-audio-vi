@@ -180,35 +180,40 @@ class HiggsAudioModelClient:
         self,
         model_path,
         audio_tokenizer,
+        device=None,
         device_id=None,
         max_new_tokens=2048,
         kv_cache_lengths: List[int] = [1024, 4096, 8192],  # Multiple KV cache sizes,
         use_static_kv_cache=False,
     ):
-        if device_id is None:
-            self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Use explicit device if provided, otherwise try CUDA/MPS/CPU
+        if device_id is not None:
+            device = f"cuda:{device_id}"
+            self._device = device
         else:
-            self._device = f"cuda:{device_id}"
-        self._audio_tokenizer = (
-            load_higgs_audio_tokenizer(audio_tokenizer, device=self._device)
-            if isinstance(audio_tokenizer, str)
-            else audio_tokenizer
-        )
-        # Select dtype from env
-        user_dtype = os.environ.get("HIGGS_DTYPE", "float32").lower()
-        if user_dtype == "bf16" or user_dtype == "bfloat16":
-            dtype = torch.bfloat16
-            print("[INFO] Using bfloat16 (bf16) precision for model weights.")
-        elif user_dtype == "fp16" or user_dtype == "float16":
-            dtype = torch.float16
-            print("[INFO] Using float16 (fp16) precision for model weights.")
+            if device is not None:
+                self._device = device
+            else:  # We get to choose the device
+                # Prefer CUDA over MPS (Apple Silicon GPU) over CPU if available
+                if torch.cuda.is_available():
+                    self._device = "cuda:0"
+                elif torch.backends.mps.is_available():
+                    self._device = "mps"
+                else:
+                    self._device = "cpu"
+
+        logger.info(f"Using device: {self._device}")
+        if isinstance(audio_tokenizer, str):
+            # For MPS, use CPU due to embedding operation limitations in quantization layers
+            audio_tokenizer_device = "cpu" if self._device == "mps" else self._device
+            self._audio_tokenizer = load_higgs_audio_tokenizer(audio_tokenizer, device=audio_tokenizer_device)
         else:
-            dtype = torch.float32
-            print("[INFO] Using float32 precision for model weights.")
+            self._audio_tokenizer = audio_tokenizer
+
         self._model = HiggsAudioModel.from_pretrained(
             model_path,
             device_map=self._device,
-            torch_dtype=dtype,
+            torch_dtype=torch.bfloat16,
         )
         self._model.eval()
         self._kv_cache_lengths = kv_cache_lengths
@@ -372,7 +377,14 @@ class HiggsAudioModelClient:
         logger.info(f"========= Final Text output =========")
         logger.info(self._tokenizer.decode(outputs[0][0]))
         concat_audio_out_ids = torch.concat(audio_out_ids_l, dim=1)
-        concat_wv = self._audio_tokenizer.decode(concat_audio_out_ids.unsqueeze(0))[0, 0]
+
+        # Fix MPS compatibility: detach and move to CPU before decoding
+        if concat_audio_out_ids.device.type == "mps":
+            concat_audio_out_ids_cpu = concat_audio_out_ids.detach().cpu()
+        else:
+            concat_audio_out_ids_cpu = concat_audio_out_ids
+
+        concat_wv = self._audio_tokenizer.decode(concat_audio_out_ids_cpu.unsqueeze(0))[0, 0]
         text_result = self._tokenizer.decode(outputs[0][0])
         return concat_wv, sr, text_result
 
@@ -674,7 +686,7 @@ def main(
 
     for tag, replacement in [
         ("[laugh]", "<SE>[Laughter]</SE>"),
-        ("[humming start]", "<SE>[Humming]</SE>"),
+        ("[humming start]", "<SE_s>[Humming]</SE_s>"),
         ("[humming end]", "<SE_e>[Humming]</SE_e>"),
         ("[music start]", "<SE_s>[Music]</SE_s>"),
         ("[music end]", "<SE_e>[Music]</SE_e>"),

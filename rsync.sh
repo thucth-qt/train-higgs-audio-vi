@@ -1,0 +1,1 @@
+rsync -r . vastai:/root/data/higgs/train-higgs-audio-vi --progress --exclude .venv --exclude .git --exclude wandb

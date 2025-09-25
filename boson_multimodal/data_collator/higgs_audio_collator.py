@@ -256,7 +256,19 @@ class HiggsAudioSampleCollator:
             audio_in_mask = processed_batch[i].input_ids == self.audio_in_token_id
             audio_out_mask = processed_batch[i].input_ids == self.audio_out_token_id
             audio_ids = torch.ones_like(processed_batch[i].input_ids)
-            audio_ids[audio_in_mask ^ audio_out_mask] = torch.cumsum(audio_ids[audio_in_mask ^ audio_out_mask], 0) - 1
+            
+            # Get the number of available audio files for this sample
+            num_available_audios = processed_batch[i].num_audios()
+            
+            # Create indices with proper bounds checking
+            audio_positions = audio_in_mask ^ audio_out_mask
+            if audio_positions.sum() > 0:
+                # Create sequential indices but cap them at available audio count
+                sequential_indices = torch.cumsum(audio_positions.int(), 0) - 1
+                # Clamp indices to available audio range [0, num_available_audios-1]
+                clamped_indices = torch.clamp(sequential_indices, 0, max(0, num_available_audios - 1))
+                audio_ids[audio_positions] = clamped_indices[audio_positions]
+            
             audio_in_ids = audio_ids[audio_in_mask]
             audio_out_ids = audio_ids[audio_out_mask]
 
@@ -265,10 +277,18 @@ class HiggsAudioSampleCollator:
                 if self.mask_audio_out_token_label:
                     processed_batch[i].label_ids[audio_out_mask] = -100
 
-            # Process audio inputs
+            # Process audio inputs with bounds checking
             if self.return_audio_in_tokens:
+                valid_audio_in_ids = []
+                num_available_audios = processed_batch[i].num_audios()
+                for idx in audio_in_ids:
+                    if idx < num_available_audios:
+                        valid_audio_in_ids.append(idx)
+                    else:
+                        print(f"Warning: Audio in index {idx} is out of bounds (available: {num_available_audios}), skipping")
+                
                 audio_in_ids_l.extend(
-                    [processed_batch[i].get_audio_codes(idx)[: self.audio_num_codebooks, :] for idx in audio_in_ids]
+                    [processed_batch[i].get_audio_codes(idx)[: self.audio_num_codebooks, :] for idx in valid_audio_in_ids]
                 )
                 if processed_batch[i].audio_label_ids_concat is not None:
                     if audio_in_label_ids_l is None:
@@ -276,12 +296,22 @@ class HiggsAudioSampleCollator:
                     audio_in_label_ids_l.extend(
                         [
                             processed_batch[i].get_audio_codes_labels(idx)[: self.audio_num_codebooks, :]
-                            for idx in audio_in_ids
+                            for idx in valid_audio_in_ids
                         ]
                     )
 
+            # Process audio outputs with bounds checking
+            valid_audio_out_ids = []
+            num_available_audios = processed_batch[i].num_audios()
+            for idx in audio_out_ids:
+                if idx < num_available_audios:
+                    valid_audio_out_ids.append(idx)
+                else:
+                    # Skip invalid indices that are out of bounds
+                    print(f"Warning: Audio out index {idx} is out of bounds (available: {num_available_audios}), skipping")
+            
             audio_out_ids_l.extend(
-                [processed_batch[i].get_audio_codes(idx)[: self.audio_num_codebooks, :] for idx in audio_out_ids]
+                [processed_batch[i].get_audio_codes(idx)[: self.audio_num_codebooks, :] for idx in valid_audio_out_ids]
             )
             audio_out_ids_group_loc_l.append(i)
             if processed_batch[i].reward is not None:
@@ -293,7 +323,7 @@ class HiggsAudioSampleCollator:
                 audio_out_label_ids_l.extend(
                     [
                         processed_batch[i].get_audio_codes_labels(idx)[: self.audio_num_codebooks, :]
-                        for idx in audio_out_ids
+                        for idx in valid_audio_out_ids
                     ]
                 )
 
@@ -351,11 +381,13 @@ class HiggsAudioSampleCollator:
                     # This may indicate that the sample comes from ConstantLengthDatasetWithBuffer.
                     audio_codes = ele
                 else:
+                    # Ensure all tensors are on the same device as the audio codes (ele)
+                    device = ele.device
                     audio_codes = torch.cat(
                         [
-                            torch.full((ele.shape[0], 1), self.audio_stream_bos_id, dtype=torch.long),
+                            torch.full((ele.shape[0], 1), self.audio_stream_bos_id, dtype=torch.long, device=device),
                             ele,
-                            torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long),
+                            torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long, device=device),
                         ],
                         dim=1,
                     )
@@ -367,8 +399,10 @@ class HiggsAudioSampleCollator:
                         )[0].squeeze(0)
                 new_audio_in_ids_l.append(audio_codes)
             audio_in_ids = torch.cat(new_audio_in_ids_l, dim=1).long()
+            # Ensure tensor is on the same device as audio_in_ids
+            device = audio_in_ids.device
             audio_in_ids_start = torch.cumsum(
-                torch.tensor([0] + [audio_codes.shape[1] for audio_codes in new_audio_in_ids_l[:-1]]), dim=0
+                torch.tensor([0] + [audio_codes.shape[1] for audio_codes in new_audio_in_ids_l[:-1]], device=device), dim=0
             )
         else:
             audio_in_ids = torch.zeros((0, 0), dtype=torch.long)
@@ -387,20 +421,22 @@ class HiggsAudioSampleCollator:
                     if return_labels:
                         label_audio_ids = audio_out_label_ids_l[idx]
                 else:
+                    # Ensure all tensors are on the same device as the audio codes (ele)
+                    device = ele.device
                     audio_codes = torch.cat(
                         [
-                            torch.full((ele.shape[0], 1), self.audio_stream_bos_id, dtype=torch.long),
+                            torch.full((ele.shape[0], 1), self.audio_stream_bos_id, dtype=torch.long, device=device),
                             ele,
-                            torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long),
+                            torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long, device=device),
                         ],
                         dim=1,
                     )
                     if return_labels:
                         label_audio_ids = torch.cat(
                             [
-                                torch.full((ele.shape[0], 1), -100, dtype=torch.long),
+                                torch.full((ele.shape[0], 1), -100, dtype=torch.long, device=device),
                                 ele,
-                                torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long),
+                                torch.full((ele.shape[0], 1), self.audio_stream_eos_id, dtype=torch.long, device=device),
                             ],
                             dim=1,
                         )
@@ -427,14 +463,16 @@ class HiggsAudioSampleCollator:
             if return_labels:
                 label_audio_ids = torch.cat(label_audio_ids_l, dim=1).long()
             audio_out_ids_start = torch.cumsum(
-                torch.tensor([0] + [audio_codes.shape[1] for audio_codes in new_audio_out_ids_l[:-1]]), dim=0
+                torch.tensor([0] + [audio_codes.shape[1] for audio_codes in new_audio_out_ids_l[:-1]], device=audio_out_ids.device), dim=0
             )
-            audio_out_ids_start_group_loc = torch.tensor(audio_out_ids_group_loc_l, dtype=torch.long)
+            audio_out_ids_start_group_loc = torch.tensor(audio_out_ids_group_loc_l, dtype=torch.long, device=audio_out_ids.device)
         else:
-            audio_out_ids = torch.zeros((0, 0), dtype=torch.long)
-            audio_out_ids_start = torch.zeros(0, dtype=torch.long)
+            # Infer device from processed_batch input_ids for consistent device placement
+            device = processed_batch[0].input_ids.device if len(processed_batch) > 0 else 'cpu'
+            audio_out_ids = torch.zeros((0, 0), dtype=torch.long, device=device)
+            audio_out_ids_start = torch.zeros(0, dtype=torch.long, device=device)
             if return_labels:
-                label_audio_ids = torch.zeros((0, 0), dtype=torch.long)
+                label_audio_ids = torch.zeros((0, 0), dtype=torch.long, device=device)
 
         reward = torch.tensor(reward_l, dtype=torch.float32)
 
